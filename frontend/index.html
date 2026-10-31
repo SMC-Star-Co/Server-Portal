@@ -195,6 +195,26 @@
                             <div id="technicians_list" class="technicians-list compact-technicians"></div>
                         </div>
 
+                        <div class="modal-section-card">
+                            <div class="section-title-row"><div class="section-title-text">تصاویر و مستندات فنی فاکتور</div></div>
+                            <div id="invoiceMediaUploader" hidden>
+                                <div class="field">
+                                    <input type="file" id="invoiceMediaFile" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.mp4,.mov,.webm,image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm">
+                                </div>
+                                <div class="field invoice-media-mode">
+                                    <label for="invoiceMediaMode">روش حفظ کیفیت تصویر</label>
+                                    <select id="invoiceMediaMode">
+                                        <option value="balanced">فشرده‌سازی با کیفیت بالا (WebP 95)</option>
+                                        <option value="detail">بدون افت کیفیت اضافی (مناسب CPU، سریال و جزئیات ریز)</option>
+                                    </select>
+                                </div>
+                                <div class="invoice-media-hint">تصاویر بدون تغییر اندازه ذخیره می‌شوند. هر فایل حداکثر ۱۶ مگابایت؛ ویدیو فعلاً بدون فشرده‌سازی مجدد ذخیره می‌شود.</div>
+                                <button type="button" id="invoiceMediaUploadBtn" onclick="uploadInvoiceMedia()" class="soft-primary-btn">آپلود فایل‌ها</button>
+                                <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
+                            </div>
+                            <div id="invoiceMediaList" class="invoice-media-list"></div>
+                        </div>
+
                     </div>
 
                     <div class="ops-modal-column ops-sales-column">
@@ -831,7 +851,17 @@
         </div>
     </div>
 
+    <dialog id="invoiceMediaPreview" class="invoice-media-preview" aria-label="نمایش فایل فنی" onclose="closeInvoiceMediaPreview()">
+        <div class="invoice-media-preview-header">
+            <strong id="invoiceMediaPreviewTitle"></strong>
+            <button type="button" class="secondary-btn" onclick="document.getElementById('invoiceMediaPreview').close()">بستن</button>
+        </div>
+        <div id="invoiceMediaPreviewBody"></div>
+    </dialog>
+
+    <link rel="stylesheet" href="./assets/css/invoice-media.css">
     <script src="./assets/js/app.js"></script>
+    <script src="./assets/js/invoice-media.js"></script>
     <script src="./assets/icons/lucide-icons.js"></script>
 </body>
 </html>
