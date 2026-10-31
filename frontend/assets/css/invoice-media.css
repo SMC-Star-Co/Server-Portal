@@ -1,0 +1,24 @@
+/* New invoice-media section only; existing Portal styles are unchanged. */
+#invoiceMediaUploader[hidden] { display: none !important; }
+.invoice-media-mode { margin-top: 10px; }
+.invoice-media-mode label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; }
+.invoice-media-mode select { width: 100%; max-width: 100%; padding: 8px; border: 1px solid #d6e0ed; border-radius: 8px; background: white; font-size: 12px; color: #334155; }
+.invoice-media-hint { color: #64748b; font-size: 11px; line-height: 1.9; margin: 8px 0; }
+.invoice-media-progress { font-size: 12px; color: #334155; margin-top: 6px; }
+.invoice-media-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; min-width: 0; }
+.invoice-media-empty { font-size: 12px; color: #64748b; padding: 10px; }
+.invoice-media-item { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; padding: 8px; border: 1px solid #e2e8f0; border-radius: 9px; background: #f8fafc; }
+.invoice-media-icon { width: 52px; height: 52px; border-radius: 7px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; font-size: 22px; }
+.invoice-media-icon img { width: 100%; height: 100%; object-fit: cover; }
+.invoice-media-details { display: flex; flex: 1 1 100px; flex-direction: column; min-width: 0; gap: 3px; }
+.invoice-media-details strong { overflow-wrap: anywhere; color: #0f172a; font-size: 12px; }
+.invoice-media-details small { color: #64748b; font-size: 11px; line-height: 1.5; }
+.invoice-media-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.invoice-media-actions button { padding: 6px 9px; font-size: 11px; }
+dialog.invoice-media-preview { border: 0; border-radius: 12px; padding: 14px; width: min(95vw, 1100px); max-height: 93vh; background: white; color: #0f172a; }
+dialog.invoice-media-preview::backdrop { background: rgba(2,6,23,.76); }
+.invoice-media-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; }
+.invoice-media-preview-header strong { overflow-wrap: anywhere; }
+#invoiceMediaPreviewBody { max-height: 80vh; overflow: auto; text-align: center; }
+#invoiceMediaPreviewBody img { display: block; margin: auto; max-width: none; max-height: none; width: auto; height: auto; }
+#invoiceMediaPreviewBody video { max-width: 100%; max-height: 70vh; }
