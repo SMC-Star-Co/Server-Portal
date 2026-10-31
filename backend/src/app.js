@@ -1,6 +1,7 @@
 const fastify = require('fastify')({ logger: true });
 const { APP_TIME_ZONE, INITIAL_ADMIN_USERNAME, INITIAL_ADMIN_PASSWORD } = require('./config/env');
 const { pool } = require('./config/database');
+const { registerInvoiceMedia, initMediaTable, cleanMedia } = require('./invoice-media');
 const { realtimeClients, broadcastRealtimeEvent } = require('./realtime/events');
 const {
   USER_ROLES,
@@ -64,7 +65,9 @@ const ALLOWED_ACTIVITY_ACTIONS = new Set([
   'order.related_updated',
   'order.priority_changed',
   'order.updated',
-  'order.deleted'
+  'order.deleted',
+  'order.media_uploaded',
+  'order.media_deleted'
 ]);
 
 async function writeActivityLog(payload = {}, client = pool) {
@@ -752,6 +755,7 @@ const initDB = async () => {
     `, [JSON.stringify(normalizeTechnicianAssignments())]);
 
     await ensureLookupTable(client, 'warranties', 'TEXT');
+    await initMediaTable(client);
 
     await client.query('COMMIT');
     console.log('Database synced successfully.');
@@ -799,6 +803,8 @@ fastify.addHook('preHandler', async (request, reply) => {
   if (request.url.startsWith('/api/events')) return;
   await authenticateRequest(request, reply);
 });
+
+registerInvoiceMedia(fastify, { pool, requirePermission, writeActivityLog, broadcastRealtimeEvent });
 
 fastify.get('/api/auth/me', async (request) => {
   return { user: request.user };
@@ -1877,6 +1883,7 @@ fastify.delete('/api/orders/:id', async (request, reply) => {
     }
 
     const dateCreated = orderRes.rows[0].date_created;
+    const attachedMedia = await client.query('SELECT stored_name, thumbnail_name FROM invoice_media WHERE order_id=$1', [id]);
     await client.query('DELETE FROM orders WHERE id = $1', [id]);
 
     if (dateCreated) {
@@ -1903,6 +1910,7 @@ fastify.delete('/api/orders/:id', async (request, reply) => {
       details: {}
     }, client);
     await client.query('COMMIT');
+    await cleanMedia(attachedMedia.rows);
     broadcastRealtimeEvent('orders.deleted', { order_id: id });
     return { success: true };
   } catch (err) {
