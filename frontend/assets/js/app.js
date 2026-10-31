@@ -3591,8 +3591,10 @@ const API_URL = '/api';
 
         function getFilteredOrders() {
             const q = normalizeText(searchQuery);
+            const currentMonth = currentServerDatePart.slice(0, 7);
 
             return allOrdersData.filter(order => {
+                const monthOk = currentMonth && getOrderDatePart(order).startsWith(`${currentMonth}/`);
                 const statusOk = activeStatusFilter === 'All' || order.status === activeStatusFilter;
 
                 const notes = parseJsonArray(order.technical_notes).map(note => note.text).join(' ');
@@ -3614,7 +3616,7 @@ const API_URL = '/api';
 
                 const searchOk = !q || searchable.includes(q);
 
-                return statusOk && searchOk;
+                return monthOk && statusOk && searchOk;
             });
         }
 
@@ -3775,9 +3777,7 @@ const API_URL = '/api';
 
         async function loadOrders() {
             try {
-                if (!currentServerDatePart) {
-                    await refreshCurrentServerDatePart();
-                }
+                await refreshCurrentServerDatePart();
 
                 const res = await apiFetch(`${API_URL}/orders`);
                 allOrdersData = await res.json();
