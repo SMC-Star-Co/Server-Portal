@@ -55,7 +55,7 @@ function magick(args, timeout=90000) {
   });
 }
 async function optimize(input,base,format,mode) {
-  const info=await magick(['-ping',input,'-format','%w %h','info:']);
+  const info=await magick(['-ping',input+'[0]','-format','%w %h','info:']);
   const [w,h]=info.split(/\s+/).map(Number);
   if (!Number.isInteger(w)||!Number.isInteger(h)||w<1||h<1||w*h>60000000) throw new Error('Image dimensions invalid');
   const webp=base+'.webp';
@@ -123,6 +123,8 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         output={stored_name:stored,thumbnail_name:null,stored_bytes:input.length,thumbnail_bytes:0,
           mime_type:format.mime,compression_mode:'original'};
       }
+      const usageAfter=await pool.query('SELECT COALESCE(SUM(stored_bytes + thumbnail_bytes),0) AS total FROM invoice_media');
+      if(Number(usageAfter.rows[0].total)+output.stored_bytes+output.thumbnail_bytes>QUOTA)throw new Error('Media quota exceeded');
       let original='file.'+format.ext;
       try{original=safeName(decodeURIComponent(String(request.headers['x-file-name']||original)))}catch{}
       const db=await pool.query('INSERT INTO invoice_media (order_id,stored_name,thumbnail_name,original_name,mime_type,original_bytes,stored_bytes,thumbnail_bytes,source_hash,compression_mode,uploaded_by,uploader_name) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
