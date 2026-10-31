@@ -1633,6 +1633,7 @@ const API_URL = '/api';
             renderTechnicians();
             applyOpsPermissions();
             document.getElementById('opsModal').style.display = 'flex';
+            openInvoiceMedia(order.id);
         }
 
         function applyOpsPermissions() {
@@ -1942,6 +1943,7 @@ const API_URL = '/api';
         }
 
         function closeOpsModal() {
+            clearInvoiceMedia();
             document.getElementById('opsModal').style.display = 'none';
             clearModalInputs('opsModal');
             techNotes = [];
