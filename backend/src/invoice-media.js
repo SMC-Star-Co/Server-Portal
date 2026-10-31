@@ -173,4 +173,4 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     return {success:true};
   });
 }
-module.exports={registerInvoiceMedia,initMediaTable,cleanMedia};
+module.exports={registerInvoiceMedia,initMediaTable,cleanMedia, __test:{sniff,isTech,diskPath}};
