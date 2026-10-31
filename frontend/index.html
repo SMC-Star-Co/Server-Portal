@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>ستاره سهیل پارسا</title>
+    <link rel="icon" type="image/png" href="./assets/icons/brand-logo.png">
+    <link rel="shortcut icon" type="image/png" href="./assets/icons/brand-logo.png">
+    <link rel="stylesheet" href="./assets/css/tailwind-local.css">
+    <link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body>
+
+    <div id="copyToast" class="font-bold">در حافظه کپی شد</div>
+
+    <button id="floatingAddBtn" onclick="handleFloatingAction()" class="floating-add-btn" style="display:none;">+ فاکتور جدید</button>
+
+    <div id="infoModal" class="modal-overlay">
+        <div class="modal-card info-modal-card" onclick="event.stopPropagation()">
+            <div class="info-modal-head">
+                <div class="info-modal-title-wrap">
+                    <div id="infoModalIcon" class="info-modal-icon">i</div>
+                    <div>
+                        <h3 id="infoModalTitle" class="info-modal-title">جزئیات</h3>
+                        <div id="infoModalSubtitle" class="info-modal-subtitle">اطلاعات تکمیلی فاکتور</div>
+                    </div>
+                </div>
+                <button class="close-btn" onclick="closeInfoModal()">×</button>
+            </div>
+            <div id="infoModalBody" class="info-modal-body"></div>
+            <div class="info-modal-footer">
+                <button class="secondary-btn" onclick="closeInfoModal()">بستن</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="orderModal" class="modal-overlay">
+        <div class="modal-card portal-modal-card modal-size-lg compact-form-modal" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon"><span data-portal-icon="receipt"></span></div>
+                    <div>
+                        <h3 class="portal-modal-title">ثبت فاکتور جدید</h3>
+                        <div class="portal-modal-subtitle">اطلاعات فاکتور را وارد کنید.</div>
+                    </div>
+                </div>
+                <button onclick="closeOrderModal()" class="close-btn">×</button>
+            </div>
+
+            <div class="portal-modal-body">
+                <form id="orderForm" class="form-grid" onkeydown="if(event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') event.preventDefault();" novalidate>
+                    <div class="field">
+                        <label>کارشناس فروش</label>
+                        <select id="seller_id" required>
+                            <option value="">انتخاب...</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>شماره فاکتور</label>
+                        <input type="text" id="invoice_number" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="font-bold" required>
+                    </div>
+                    
+                    <div class="field">
+                        <label>نام خریدار</label>
+                        <input type="text" id="buyer_name" required>
+                    </div>
+
+                    <div class="field">
+                        <label>شهر</label>
+                        <select id="city_id" required>
+                            <option value="">انتخاب...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="field">
+                        <label>مدل سرور</label>
+                        <select id="device_model" required>
+                            <option value="">انتخاب مدل...</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>تعداد</label>
+                        <input type="number" id="quantity" min="1" oninput="if(this.value < 1) this.value = '';" required>
+                    </div>
+                    
+                    <div class="field">
+                        <label>نوع کانفیگ</label>
+                        <select id="config_type" required>
+                            <option value="">انتخاب...</option>
+                            <option value="Base">Base</option>
+                            <option value="Config">Config</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>انبار</label>
+                        <select id="warehouse_id" onchange="toggleWarehouseLogic()" required>
+                            <option value="">انتخاب...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="field">
+                        <label>شماره خرید (سرور)</label>
+                        <input type="text" id="purchase_number" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="locked-field" disabled>
+                    </div>
+
+                    <div class="field">
+                        <label>گارانتی</label>
+                        <select id="warranty" class="locked-field" disabled>
+                            <option value="">انتخاب...</option>
+                        </select>
+                    </div>
+
+                    <div class="field col-span-2">
+                        <label>توضیحات فروشنده</label>
+                        <textarea id="seller_description" rows="2" placeholder="توضیحات تکمیلی فروشنده..."></textarea>
+                    </div>
+                    
+                    <div class="col-span-2 modal-section-card">
+                        <div class="section-title-row">
+                            <div class="section-title-text">فاکتورهای وابسته</div>
+                        </div>
+                        <div class="inline-form-row">
+                            <input type="text" id="rel_invoice_input" oninput="this.value = this.value.replace(/[^0-9]/g, '')" onkeydown="if(event.key === 'Enter') { event.preventDefault(); addRelInvoice(); }" placeholder="شماره فاکتور وابسته...">
+                            <button type="button" onclick="addRelInvoice()" class="soft-primary-btn">ثبت</button>
+                        </div>
+                        <div id="rel_invoices_list" class="flex flex-wrap gap-2 mt-3"></div>
+                    </div>
+
+                    <div class="col-span-2 mt-1">
+                        <button type="button" onclick="handleOrderSubmit()" class="primary-submit">تایید و ثبت فاکتور</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="opsModal" class="modal-overlay">
+        <div class="modal-card portal-modal-card modal-size-xl ops-modal-card" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon"><span data-portal-icon="settings"></span></div>
+                    <div>
+                        <h3 id="opsModalTitle" class="portal-modal-title">مدیریت فاکتور</h3>
+                    </div>
+                </div>
+                <button onclick="closeOpsModal()" class="close-btn">×</button>
+            </div>
+            
+            <div class="portal-modal-body">
+                <input type="hidden" id="edit_order_id">
+                <div id="opsInvoiceSummary" class="hidden"></div>
+
+                <div class="management-grid">
+                    <div class="ops-modal-column ops-technical-column">
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">تعیین وضعیت</div>
+                            </div>
+                            <div class="field">
+                                <select id="edit_status" class="font-bold text-blue-700" onchange="handleStatusChange()">
+                                    <option value="Pending">در انتظار انجام</option>
+                                    <option value="Waiting-Goods">در انتظار دریافت کالا</option>
+                                    <option value="In-Progress">در حال انجام</option>
+                                    <option value="Cancelled">کنسل شده</option>
+                                    <option value="Returned">برگشت خورده</option>
+                                    <option value="Completed">تکمیل شده</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">سریال‌ها</div>
+                            </div>
+                            <button type="button" onclick="openSerialModalFromOps()" class="soft-primary-btn serial-manage-btn">مدیریت سریال‌ها</button>
+                        </div>
+
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">توضیحات فنی</div>
+                            </div>
+                            <div class="inline-form-row">
+                                <input type="text" id="tech_note_input" onkeydown="if(event.key === 'Enter') { event.preventDefault(); addTechNote(); }" placeholder="توضیح فنی جدید...">
+                                <button type="button" onclick="addTechNote()" class="soft-primary-btn">ثبت</button>
+                            </div>
+                            <div id="tech_notes_list" class="tech-notes-list"></div>
+                        </div>
+
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">تکنسین‌های در حال انجام کار</div>
+                            </div>
+                            <div id="technicians_list" class="technicians-list compact-technicians"></div>
+                        </div>
+
+                    </div>
+
+                    <div class="ops-modal-column ops-sales-column">
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">توضیحات فروشنده</div>
+                            </div>
+                            <div class="inline-form-row">
+                                <input type="text" id="seller_note_input" onkeydown="if(event.key === 'Enter') { event.preventDefault(); addSellerNote(); }" placeholder="توضیح فروشنده جدید...">
+                                <button type="button" onclick="addSellerNote()" class="soft-primary-btn">ثبت</button>
+                            </div>
+                            <div id="seller_notes_list" class="tech-notes-list"></div>
+                        </div>
+
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">فاکتورهای وابسته</div>
+                            </div>
+                            <div class="inline-form-row">
+                                <input type="text" id="ops_rel_invoice_input" oninput="this.value = this.value.replace(/[^0-9]/g, '')" onkeydown="if(event.key === 'Enter') { event.preventDefault(); addOpsRelInvoice(); }" placeholder="شماره فاکتور وابسته...">
+                                <button type="button" onclick="addOpsRelInvoice()" class="soft-primary-btn">ثبت</button>
+                            </div>
+                            <div id="ops_rel_invoices_list" class="ops-related-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="portal-modal-footer ops-modal-footer">
+                <button id="saveBtn" class="primary-submit" onclick="submitOpsUpdate()">ذخیره تغییرات</button>
+                <button type="button" onclick="openEditOrderModal()" class="secondary-btn">ویرایش فاکتور</button>
+                <button type="button" onclick="deleteCurrentOrder()" class="soft-danger-btn">حذف فاکتور</button>
+                <button class="secondary-btn" onclick="closeOpsModal()">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteConfirmModal" class="modal-overlay nested-modal">
+        <div class="modal-card delete-confirm-card" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon">!</div>
+                    <div>
+                        <h3 class="portal-modal-title">حذف فاکتور</h3>
+                    </div>
+                </div>
+                <button onclick="closeDeleteConfirmModal()" class="close-btn">×</button>
+            </div>
+            <div id="deleteConfirmText" class="delete-confirm-body"></div>
+            <div class="delete-confirm-actions">
+                <button type="button" id="confirmDeleteBtn" onclick="confirmDeleteCurrentOrder()" class="soft-danger-btn flex-1">حذف فاکتور</button>
+                <button type="button" onclick="closeDeleteConfirmModal()" class="secondary-btn flex-1">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editOrderModal" class="modal-overlay nested-modal">
+        <div class="modal-card portal-modal-card modal-size-lg compact-form-modal" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon">✎</div>
+                    <div>
+                        <h3 class="portal-modal-title">ویرایش فاکتور</h3>
+                        <div class="portal-modal-subtitle">مقادیر فعلی فاکتور را تغییر دهید و ذخیره کنید.</div>
+                    </div>
+                </div>
+                <button onclick="closeEditOrderModal()" class="close-btn">×</button>
+            </div>
+
+            <div class="portal-modal-body">
+                <form id="editOrderForm" class="form-grid" onkeydown="if(event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') event.preventDefault();" novalidate>
+                    <div class="field">
+                        <label>کارشناس فروش</label>
+                        <select id="edit_seller_id" required></select>
+                    </div>
+
+                    <div class="field">
+                        <label>شماره فاکتور</label>
+                        <input type="text" id="edit_invoice_number" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="font-bold" required>
+                    </div>
+                    
+                    <div class="field">
+                        <label>نام خریدار</label>
+                        <input type="text" id="edit_buyer_name" required>
+                    </div>
+
+                    <div class="field">
+                        <label>شهر</label>
+                        <select id="edit_city_id" required></select>
+                    </div>
+                    
+                    <div class="field">
+                        <label>مدل سرور</label>
+                        <select id="edit_device_model" required></select>
+                    </div>
+
+                    <div class="field">
+                        <label>تعداد</label>
+                        <input type="number" id="edit_quantity" min="1" oninput="if(this.value < 1) this.value = '';" required>
+                    </div>
+                    
+                    <div class="field">
+                        <label>نوع کانفیگ</label>
+                        <select id="edit_config_type" required>
+                            <option value="Base">Base</option>
+                            <option value="Config">Config</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label>انبار</label>
+                        <select id="edit_warehouse_id" onchange="toggleEditWarehouseLogic()" required></select>
+                    </div>
+                    
+                    <div class="field">
+                        <label>شماره خرید (سرور)</label>
+                        <input type="text" id="edit_purchase_number" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="locked-field" disabled>
+                    </div>
+
+                    <div class="field">
+                        <label>گارانتی</label>
+                        <select id="edit_warranty" class="locked-field" disabled></select>
+                    </div>
+
+
+                    <div class="col-span-2 mt-1 flex gap-3">
+                        <button type="button" id="editOrderSaveBtn" onclick="handleEditOrderSubmit()" class="primary-submit flex-1">ذخیره ویرایش فاکتور</button>
+                        <button type="button" onclick="closeEditOrderModal()" class="secondary-btn">انصراف</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="serialModal" class="modal-overlay nested-modal">
+        <div class="modal-card portal-modal-card modal-size-md" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon">#</div>
+                    <div>
+                        <h3 id="serialModalTitle" class="portal-modal-title">سریال های فاکتور</h3>
+                    </div>
+                </div>
+                <button onclick="closeSerialModal()" class="close-btn">×</button>
+            </div>
+
+            <div class="portal-modal-body serial-section">
+                <input type="hidden" id="serial_order_id">
+                <div class="modal-section-card">
+                    <div class="section-title-row" style="direction: rtl;">
+                        <div class="section-title-text">ثبت سریال</div>
+                    </div>
+                    <div class="inline-form-row">
+                        <input type="text" id="serial_input" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9\-_]/g, '');" onkeydown="if(event.key === 'Enter') { event.preventDefault(); addSerial(); }" placeholder="ورود سریال..." style="direction: ltr; font-family: 'Vazirmatn';">
+                        <button type="button" onclick="addSerial()" class="soft-primary-btn">ثبت</button>
+                    </div>
+                    <div class="bg-slate-50 rounded-2xl p-3 mt-3 overflow-y-auto max-h-[320px] border border-slate-200">
+                        <div id="serials_list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="portal-modal-footer">
+                <button id="serialSaveBtn" class="flex-1 primary-submit" onclick="submitSerialsUpdate()">ذخیره سریال‌ها</button>
+                <button class="secondary-btn" onclick="closeSerialModal()">بستن</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="loginPage" class="auth-page">
+        <div class="auth-card">
+            <div class="auth-head">
+                <div class="brand-icon brand-logo-box">
+                    <img src="./assets/icons/brand-logo.png" alt="لوگوی ستاره سهیل پارسا" class="brand-logo-image">
+                </div>
+                <div>
+                    <h1 class="brand-title">ستاره سهیل پارسا</h1>
+                    <div class="brand-subtitle">ورود به پورتال</div>
+                </div>
+            </div>
+            <div class="auth-body">
+                <div id="loginError" class="auth-error"></div>
+                <form id="loginForm" class="space-y-4" onsubmit="handleLogin(event)" autocomplete="off" novalidate>
+                    <div class="field">
+                        <label>نام کاربری</label>
+                        <input id="loginUsername" name="portal_login_username" type="text" autocomplete="off" required placeholder="">
+                    </div>
+                    <div class="field">
+                        <label>رمز عبور</label>
+                        <input id="loginPassword" name="portal_login_password" type="password" autocomplete="new-password" required placeholder="">
+                    </div>
+                    <button id="loginBtn" type="submit" class="primary-submit">ورود</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="appShell" class="app-shell" style="display:none;">
+        <header class="top-header">
+            <div class="top-header-inner">
+                <div class="brand-card">
+                    <div class="brand-icon brand-logo-box">
+                        <img src="./assets/icons/brand-logo.png" alt="لوگوی ستاره سهیل پارسا" class="brand-logo-image">
+                    </div>
+                    <div>
+                        <h1 class="brand-title">ستاره سهیل پارسا</h1>
+                        <div class="brand-subtitle">مدیریت فاکتورها، اولویت‌ها و وضعیت تخصیص کالا</div>
+                    </div>
+                </div>
+
+                <div class="top-actions">
+                    <div class="top-search-wrap" id="globalSearchWrap">
+                        <input id="globalSearch" class="top-search" type="text" placeholder="جستجو ..." oninput="handleSearch(this.value)">
+                    </div>
+                    <div class="account-actions">
+                        <div id="lastRefreshPill" class="user-pill header-action-box header-refresh-box" title="آخرین بروزرسانی">
+                            <button id="manualRefreshBtn" type="button" class="header-refresh-btn" onclick="handleManualRefresh()" aria-label="بروزرسانی">
+                                <span data-portal-icon="refresh-cw"></span>
+                            </button>
+                            <span class="last-refresh-label">آخرین بروزرسانی</span>
+                            <b id="lastRefreshTime" class="last-refresh-time">--:--:--</b>
+                        </div>
+                        <div id="currentUserRolePill" class="user-pill header-action-box header-role-box">نقش</div>
+                        <div id="currentUserPill" class="user-pill header-action-box header-user-box">کاربر</div>
+                        <button type="button" onclick="logout()" class="soft-danger-btn header-action-box header-logout-btn">خروج</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="dashboard-layout">
+            <aside class="side-menu">
+<button type="button" id="navHomeBtn" onclick="showPage('home')" class="page-nav-btn active-page">
+                    <span>صفحه اصلی</span>
+                    <span class="menu-arrow-icon"><span data-portal-icon="home"></span></span>
+                </button>
+
+                <button type="button" id="navUsersBtn" onclick="showPage('users')" class="page-nav-btn">
+                    <span>مدیریت کاربران</span>
+                    <span class="menu-arrow-icon"><span data-portal-icon="users"></span></span>
+                </button>
+
+                <button type="button" id="navLookupsBtn" onclick="showPage('lookups')" class="page-nav-btn">
+                    <span>مدیریت اطلاعات پایه</span>
+                    <span class="menu-arrow-icon">◇</span>
+                </button>
+
+                <button type="button" id="navArchiveBtn" onclick="showPage('archive')" class="page-nav-btn">
+                    <span>بایگانی</span>
+                    <span class="menu-arrow-icon"><span data-portal-icon="archive"></span></span>
+                </button>
+
+                <button type="button" id="navReportsBtn" onclick="showPage('reports')" class="page-nav-btn">
+                    <span>گزارش ها</span>
+                    <span class="menu-arrow-icon">▣</span>
+                </button>
+
+                <button type="button" id="navLogsBtn" onclick="showPage('logs')" class="page-nav-btn">
+                    <span>فعالیت ها</span>
+                    <span class="menu-arrow-icon"><span data-portal-icon="activity"></span></span>
+                </button>
+
+                <button type="button" id="navAccountBtn" onclick="showPage('account')" class="page-nav-btn">
+                    <span>تنظیمات حساب کاربری</span>
+                    <span class="menu-arrow-icon"><span data-portal-icon="key-round"></span></span>
+                </button>
+            </aside>
+
+            <main class="table-area">
+                <section id="homePage">
+                    <div id="groupedTableContainer"></div>
+                </section>
+
+                <section id="usersPage" class="hidden">
+                    <div id="usersGroupsContainer" class="users-groups-container">
+                        <div class="mini-empty-state">در حال دریافت اطلاعات...</div>
+                    </div>
+                </section>
+
+                <section id="lookupsPage" class="hidden">
+                    <div class="lookups-layout">
+                        <div class="lookup-tabs-card">
+                            <div class="advanced-search-title">
+                                <div>
+                                    <strong>اطلاعات پایه</strong>
+                                    <span>مدیریت لیست‌های مورد استفاده در ثبت فاکتور.</span>
+                                </div>
+                            </div>
+                            <div id="lookupTabsContainer"></div>
+                        </div>
+                        <div>
+                            <div id="lookupEditorContainer" class="lookup-form-card"></div>
+                            <div id="lookupsContainer" class="lookup-table-card mt-3">
+                                <div class="mini-empty-state">در حال دریافت اطلاعات پایه...</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="archivePage" class="hidden">
+
+                    <div class="advanced-search-card">
+                        <div class="advanced-search-title">
+                            <div>
+                                <strong>جستجوی پیشرفته بایگانی</strong>
+                            </div>
+                        </div>
+                        <div class="advanced-search-grid">
+                            <div class="field">
+                                <label>کارشناس فروش</label>
+                                <select id="archive_seller_id"></select>
+                            </div>
+                            <div class="field">
+                                <label>شماره فاکتور</label>
+                                <input id="archive_invoice_number" type="number" min="1" oninput="if(this.value < 1) this.value = '';" placeholder="شماره فاکتور">
+                            </div>
+                            <div class="field">
+                                <label>تاریخ</label>
+                                <div class="segmented-date-field" aria-label="تاریخ شمسی">
+                                    <input id="archive_date_year" type="text" inputmode="numeric" maxlength="4" placeholder="سال" oninput="handleDatePartInput(this, 'archive_date_month', 4)" onblur="normalizeDatePartOnBlur(this, 4)">
+                                    <span>/</span>
+                                    <input id="archive_date_month" type="text" inputmode="numeric" maxlength="2" placeholder="ماه" oninput="handleDatePartInput(this, 'archive_date_day', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                    <span>/</span>
+                                    <input id="archive_date_day" type="text" inputmode="numeric" maxlength="2" placeholder="روز" oninput="handleDatePartInput(this, '', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>نام خریدار</label>
+                                <input id="archive_buyer_name" type="text" placeholder="نام خریدار">
+                            </div>
+                            <div class="field">
+                                <label>شهر</label>
+                                <select id="archive_city_id"></select>
+                            </div>
+                            <div class="field">
+                                <label>مدل سرور</label>
+                                <select id="archive_device_model"></select>
+                            </div>
+                            <div class="field">
+                                <label>تعداد</label>
+                                <input id="archive_quantity" type="number" min="1" oninput="if(this.value < 1) this.value = '';" placeholder="تعداد">
+                            </div>
+                            <div class="field">
+                                <label>نوع کانفیگ</label>
+                                <select id="archive_config_type">
+                                    <option value="">همه نوع کانفیگ‌ها</option>
+                                    <option value="Base">Base</option>
+                                    <option value="Config">Config</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>انبار</label>
+                                <select id="archive_warehouse_id"></select>
+                            </div>
+                            <button type="button" onclick="applyArchiveSearch()" class="primary-submit">جستجو</button>
+                            <button type="button" onclick="clearArchiveSearch()" class="secondary-btn">پاکسازی</button>
+                        </div>
+                    </div>
+
+                    <div id="archiveContainer" class="archive-groups-container">
+                        <div class="mini-empty-state">در حال دریافت آرشیو...</div>
+                    </div>
+                </section>
+                <section id="reportsPage" class="hidden">
+                    <div class="advanced-search-card report-controls-card">
+                        <div class="advanced-search-title">
+                            <div>
+                                <strong>بازه زمانی گزارش</strong>
+                                <span>با انتخاب بازه، آمار همان بازه نمایش داده می‌شود.</span>
+                            </div>
+                        </div>
+                        <div class="reports-control-grid">
+                            <div class="field report-date-range-field">
+                                <label>از تاریخ</label>
+                                <div class="segmented-date-field" aria-label="از تاریخ شمسی گزارش">
+                                    <input id="report_start_date_year" type="text" inputmode="numeric" maxlength="4" placeholder="سال" oninput="handleDatePartInput(this, 'report_start_date_month', 4)" onblur="normalizeDatePartOnBlur(this, 4)">
+                                    <span>/</span>
+                                    <input id="report_start_date_month" type="text" inputmode="numeric" maxlength="2" placeholder="ماه" oninput="handleDatePartInput(this, 'report_start_date_day', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                    <span>/</span>
+                                    <input id="report_start_date_day" type="text" inputmode="numeric" maxlength="2" placeholder="روز" oninput="handleDatePartInput(this, '', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                </div>
+                            </div>
+                            <div class="field report-date-range-field">
+                                <label>تا تاریخ</label>
+                                <div class="segmented-date-field" aria-label="تا تاریخ شمسی گزارش">
+                                    <input id="report_end_date_year" type="text" inputmode="numeric" maxlength="4" placeholder="سال" oninput="handleDatePartInput(this, 'report_end_date_month', 4)" onblur="normalizeDatePartOnBlur(this, 4)">
+                                    <span>/</span>
+                                    <input id="report_end_date_month" type="text" inputmode="numeric" maxlength="2" placeholder="ماه" oninput="handleDatePartInput(this, 'report_end_date_day', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                    <span>/</span>
+                                    <input id="report_end_date_day" type="text" inputmode="numeric" maxlength="2" placeholder="روز" oninput="handleDatePartInput(this, '', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                </div>
+                            </div>
+                            <div class="report-actions-row">
+                                <button type="button" onclick="applyReportDateRange()" class="primary-submit" style="width:auto; min-width:130px;">نمایش گزارش</button>
+                                <button type="button" onclick="setReportsToCurrentServerMonth()" class="secondary-btn">ماه جاری</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="reports-summary-grid">
+                        <div class="report-summary-card">
+                            <div class="report-summary-label">تعداد فاکتور در بازه</div>
+                            <div id="reportTotalOrders" class="report-summary-value">0</div>
+                        </div>
+                        <div class="report-summary-card">
+                            <div class="report-summary-label">مجموع تعداد کالا</div>
+                            <div id="reportTotalQuantity" class="report-summary-value">0</div>
+                        </div>
+                        <div class="report-summary-card">
+                            <div class="report-summary-label">فاکتورهای تکمیل‌شده</div>
+                            <div id="reportCompletedOrders" class="report-summary-value">0</div>
+                        </div>
+                        <div class="report-summary-card">
+                            <div class="report-summary-label">درصد تکمیل</div>
+                            <div id="reportCompletedPercent" class="report-summary-value">0%</div>
+                        </div>
+                    </div>
+
+                    <div class="report-chart-card">
+                        <div class="report-chart-head">
+                            <div>
+                                <div id="reportChartTitle" class="report-chart-title">نمودار وضعیت فاکتورها</div>
+                                <div id="reportChartSubtitle" class="report-chart-subtitle">روی هر بخش کلیک کنید تا زیرمجموعه‌های همان بخش در همین نمودار نمایش داده شود.</div>
+                            </div>
+                            <button id="reportBackBtn" type="button" onclick="goBackReportDrill()" class="secondary-btn" style="display:none;">بازگشت</button>
+                        </div>
+                        <div id="reportBreadcrumb" class="report-breadcrumb"></div>
+                        <div id="reportChartContainer"></div>
+                    </div>
+                </section>
+
+                <section id="logsPage" class="hidden">
+
+                    <div class="logs-panel-card">
+                        <div class="logs-panel-title">
+                            <div>
+                                <strong>فیلتر فعالیت‌ها</strong>
+                            </div>
+                        </div>
+                        <div class="logs-filter-grid">
+                            <div class="field">
+                                <label>کاربر</label>
+                                <select id="log_user_id"></select>
+                            </div>
+                            <div class="field">
+                                <label>تاریخ</label>
+                                <div class="segmented-date-field" aria-label="تاریخ شمسی">
+                                    <input id="log_date_year" type="text" inputmode="numeric" maxlength="4" placeholder="سال" oninput="handleDatePartInput(this, 'log_date_month', 4)" onblur="normalizeDatePartOnBlur(this, 4)">
+                                    <span>/</span>
+                                    <input id="log_date_month" type="text" inputmode="numeric" maxlength="2" placeholder="ماه" oninput="handleDatePartInput(this, 'log_date_day', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                    <span>/</span>
+                                    <input id="log_date_day" type="text" inputmode="numeric" maxlength="2" placeholder="روز" oninput="handleDatePartInput(this, '', 2)" onblur="normalizeDatePartOnBlur(this, 2)">
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>شماره فاکتور</label>
+                                <input id="log_invoice_number" type="number" min="1" oninput="if(this.value < 1) this.value = '';" placeholder="شماره فاکتور">
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="loadActivityLogs()" class="primary-submit flex-1">مشاهده</button>
+                                <button type="button" onclick="clearActivityLogFilters()" class="secondary-btn">پاکسازی</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="logsContainer" class="logs-list-container">
+                        <div class="mini-empty-state">در حال دریافت لاگ‌ها...</div>
+                    </div>
+                </section>
+
+                <section id="accountPage" class="hidden">
+<div class="account-settings-card">
+                        <div class="account-settings-title">
+                            <div>
+                                <strong>اطلاعات حساب</strong>
+                                <span>مشخصات ورود فعلی شما در سیستم.</span>
+                            </div>
+                        </div>
+                        <div class="account-profile-summary">
+                            <div class="account-profile-item">
+                                <div class="account-profile-label">نام کامل</div>
+                                <div id="accountFullName" class="account-profile-value">-</div>
+                            </div>
+                            <div class="account-profile-item">
+                                <div class="account-profile-label">نام کاربری</div>
+                                <div id="accountUsername" class="account-profile-value">-</div>
+                            </div>
+                            <div class="account-profile-item">
+                                <div class="account-profile-label">نقش کاربری</div>
+                                <div id="accountRole" class="account-profile-value">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="account-settings-card">
+                        <div class="account-settings-title">
+                            <div>
+                                <strong>تغییر رمز عبور</strong>
+                                <span>رمز جدید باید حداقل ۴ کاراکتر باشد.</span>
+                            </div>
+                        </div>
+                        <form id="accountPasswordForm" onsubmit="handleAccountPasswordChange(event)" novalidate>
+                            <div class="account-form-grid">
+                                <div class="field">
+                                    <label>رمز عبور فعلی</label>
+                                    <input id="account_current_password" type="password" autocomplete="current-password" required>
+                                </div>
+                                <div class="field">
+                                    <label>رمز عبور جدید</label>
+                                    <input id="account_new_password" type="password" autocomplete="new-password" required minlength="4">
+                                </div>
+                                <div class="field">
+                                    <label>تکرار رمز عبور جدید</label>
+                                    <input id="account_confirm_password" type="password" autocomplete="new-password" required minlength="4">
+                                </div>
+                                <button type="submit" id="accountPasswordBtn" class="primary-submit">ثبت رمز جدید</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+
+
+    <div id="userModal" class="modal-overlay">
+        <div class="modal-card portal-modal-card user-modal-card" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon"><span data-portal-icon="user"></span></div>
+                    <div>
+                        <h3 id="userFormTitle" class="portal-modal-title">ساخت کاربر جدید</h3>
+                        <div id="userFormSubtitle" class="portal-modal-subtitle">اطلاعات کاربر و سطح دسترسی‌ها را تنظیم کنید.</div>
+                    </div>
+                </div>
+                <button onclick="closeUserModal()" class="close-btn">×</button>
+            </div>
+            <form id="userForm" onsubmit="handleUserFormSubmit(event)" novalidate>
+                <div class="portal-modal-body">
+                    <input type="hidden" id="user_id">
+                    <div class="user-modal-grid">
+                        <div class="modal-section-card user-modal-fields">
+                            <div class="field">
+                                <label>نام کامل</label>
+                                <input id="user_full_name" type="text" required>
+                            </div>
+                            <div class="field">
+                                <label>نام کاربری</label>
+                                <input id="user_username" type="text" required autocomplete="off">
+                            </div>
+                            <div id="userPasswordFieldWrap" class="field">
+                                <label>رمز عبور</label>
+                                <input id="user_password" type="password" autocomplete="new-password" placeholder="برای کاربر جدید الزامی است">
+                            </div>
+                            <div class="field">
+                                <label>دسته کاربر</label>
+                                <div id="userRolesGrid" class="role-options-grid"></div>
+                            </div>
+                            <label class="permission-item">
+                                <span>
+                                    <b>کاربر فعال باشد</b>
+                                    <small>کاربر غیرفعال امکان ورود ندارد.</small>
+                                </span>
+                                <input id="user_is_active" type="checkbox" checked>
+                            </label>
+                        </div>
+                        <div class="modal-section-card">
+                            <div class="section-title-row">
+                                <div class="section-title-text">دسترسی‌ها</div>
+                            </div>
+                            <div id="permissionsGrid" class="permission-grid"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="portal-modal-footer">
+                    <button id="userSaveBtn" type="submit" class="primary-submit" style="width:auto; min-width:160px;">ذخیره کاربر</button>
+                    <button type="button" onclick="closeUserModal()" class="secondary-btn">انصراف</button>
+                    <button id="userDeleteInModalBtn" type="button" onclick="deleteEditingUserFromModal()" class="soft-danger-btn modal-danger-action" style="display:none;">حذف کاربر</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="resetPasswordModal" class="modal-overlay nested-modal">
+        <div class="modal-card portal-modal-card confirm-modal-card" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon"><span data-portal-icon="key-round"></span></div>
+                    <div>
+                        <h3 class="portal-modal-title">ریست رمز عبور</h3>
+                        <div id="resetPasswordUserName" class="portal-modal-subtitle"></div>
+                    </div>
+                </div>
+                <button onclick="closeResetPasswordModal()" class="close-btn">×</button>
+            </div>
+            <div class="portal-modal-body">
+                <input type="hidden" id="reset_user_id">
+                <div class="field mb-3">
+                    <label>رمز عبور جدید</label>
+                    <input id="reset_password_new" type="password" autocomplete="new-password" placeholder="حداقل ۴ کاراکتر">
+                </div>
+                <div class="field">
+                    <label>تکرار رمز عبور جدید</label>
+                    <input id="reset_password_confirm" type="password" autocomplete="new-password">
+                </div>
+            </div>
+            <div class="portal-modal-footer">
+                <button type="button" onclick="submitResetUserPassword()" class="primary-submit" style="width:auto; min-width:150px;">ثبت رمز جدید</button>
+                <button type="button" onclick="closeResetPasswordModal()" class="secondary-btn">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteUserConfirmModal" class="modal-overlay nested-modal">
+        <div class="modal-card portal-modal-card confirm-modal-card" onclick="event.stopPropagation()">
+            <div class="portal-modal-head">
+                <div class="portal-modal-title-wrap">
+                    <div class="portal-modal-icon">!</div>
+                    <div>
+                        <h3 class="portal-modal-title">حذف کاربر</h3>
+                    </div>
+                </div>
+                <button onclick="closeDeleteUserConfirmModal()" class="close-btn">×</button>
+            </div>
+            <div class="delete-confirm-body">
+                <input type="hidden" id="delete_user_id">
+                <div id="deleteUserConfirmText"></div>
+            </div>
+            <div class="delete-confirm-actions">
+                <button type="button" onclick="confirmDeleteUser()" class="soft-danger-btn flex-1">حذف کاربر</button>
+                <button type="button" onclick="closeDeleteUserConfirmModal()" class="secondary-btn flex-1">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./assets/js/app.js"></script>
+    <script src="./assets/icons/lucide-icons.js"></script>
+</body>
+</html>
