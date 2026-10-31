@@ -32,6 +32,8 @@ services:
       INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - /srv/portal-media:/app/media
 
   web:
     image: nginx:alpine
