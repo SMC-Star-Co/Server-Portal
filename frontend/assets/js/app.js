@@ -1633,7 +1633,6 @@ const API_URL = '/api';
             renderTechnicians();
             applyOpsPermissions();
             document.getElementById('opsModal').style.display = 'flex';
-            openInvoiceMedia(order.id);
         }
 
         function applyOpsPermissions() {
