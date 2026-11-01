@@ -56,8 +56,8 @@ test('light and dark themes specify actual surfaces and accessible interaction',
  for(const token of ['--canvas','--paper','--ink','--accent','--nav','--success','--danger','--line']){
   assert.ok(core.includes(token+':'),token);
  }
- assert.match(core,/html\[data-theme=dark\]/);
- assert.match(core,/html\[data-theme=light\]/);
+ assert.match(core,/html\[data-theme="dark"\]/);
+ assert.match(core,/html\[data-theme="light"\]/);
  assert.match(core,/prefers-reduced-motion/);
  assert.match(core,/:focus-visible/);
  assert.ok(!/https?:\/\//.test(core),'no external CSS dependency');
