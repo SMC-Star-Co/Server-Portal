@@ -2,12 +2,18 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#13243c">
     <title>ستاره سهیل پارسا</title>
     <link rel="icon" type="image/png" href="./assets/icons/brand-logo.png">
     <link rel="shortcut icon" type="image/png" href="./assets/icons/brand-logo.png">
     <link rel="stylesheet" href="./assets/css/tailwind-local.css">
     <link rel="stylesheet" href="./assets/css/app.css">
     <link rel="stylesheet" href="./assets/css/invoice-media.css">
+    <link rel="stylesheet" href="./assets/css/enterprise.css?v=enterprise-1">
+    <script>
+    (function(){try{var p=localStorage.getItem('portal.enterprise.theme');var t=(p==='dark'||p==='light')?p:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t;if(localStorage.getItem('portal.enterprise.density')==='compact')document.documentElement.classList.add('ep-density-compact');}catch(e){document.documentElement.dataset.theme='light';}})();
+    </script>
 </head>
 <body>
 
@@ -958,5 +964,6 @@
     <script src="./assets/js/app.js"></script>
     <script src="./assets/js/invoice-media.js"></script>
     <script src="./assets/icons/lucide-icons.js"></script>
+    <script src="./assets/js/enterprise.js?v=enterprise-1"></script>
 </body>
 </html>
