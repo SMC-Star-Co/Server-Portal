@@ -876,14 +876,13 @@
                     </div>
                     <input type="file" id="invoiceMediaInvoiceFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
                     <input type="file" id="invoiceMediaSerialFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
-                    <div id="invoiceMediaSelection" class="invoice-media-selection" aria-live="polite">
+                    <div id="invoiceMediaSelection" class="invoice-media-selection" aria-live="polite" hidden>
                         <div class="invoice-media-selection-top">
                             <strong>فایل‌های آماده آپلود</strong>
                             <span id="invoiceMediaSelectionSummary">هنوز فایلی انتخاب نشده است.</span>
                         </div>
                         <div id="invoiceMediaPendingList" class="invoice-media-pending-list"></div>
                     </div>
-                    <div class="invoice-media-preview-name">نمونه نام ذخیره‌شده: <b id="invoiceMediaNameSample"></b></div>
                     <button type="button" id="invoiceMediaUploadButton" class="primary-submit invoice-media-upload-button" onclick="uploadInvoiceMedia()" disabled>آپلود فایل‌های انتخاب‌شده</button>
                     <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
                 </section>
@@ -915,11 +914,32 @@
                 </section>
             </div>
             <div class="portal-modal-footer invoice-media-modal-footer">
-                <span>فایل اصلی بدون تغییر کیفیت یا فشرده‌سازی ذخیره می‌شود.</span>
                 <button type="button" class="secondary-btn" onclick="closeInvoiceMediaModal()">بستن</button>
             </div>
         </div>
     </div>
+
+    <dialog id="invoiceMediaReplaceDialog" class="invoice-media-replace-dialog" aria-label="ویرایش فایل">
+        <div class="invoice-media-replace-heading">
+            <div>
+                <h3>جایگزینی فایل</h3>
+                <p>فایل جدید به جای نسخه قبلی ثبت می‌شود و نام نهایی تغییر نمی‌کند.</p>
+            </div>
+            <button type="button" class="invoice-media-replace-close" onclick="closeInvoiceMediaReplaceDialog()" aria-label="بستن">×</button>
+        </div>
+        <div class="invoice-media-replace-body">
+            <label>نام ثابت فایل در سیستم</label>
+            <div id="invoiceMediaReplaceName" class="invoice-media-replace-name"></div>
+            <label for="invoiceMediaReplaceInput">فایل جدید با همان پسوند</label>
+            <input id="invoiceMediaReplaceInput" type="file" onchange="updateInvoiceMediaReplaceSelection()">
+            <div id="invoiceMediaReplaceSelection" class="invoice-media-replace-selected">هنوز فایلی انتخاب نشده است.</div>
+            <div class="invoice-media-replace-warning">پس از جایگزینی موفق، فایل قبلی حذف می‌شود. شماره و نام فایل، سریال و ارتباط آن با فاکتور محفوظ می‌مانند.</div>
+        </div>
+        <div class="invoice-media-replace-footer">
+            <button type="button" class="secondary-btn" onclick="closeInvoiceMediaReplaceDialog()">انصراف</button>
+            <button type="button" id="invoiceMediaReplaceSubmit" class="soft-primary-btn" onclick="submitInvoiceMediaReplacement()" disabled>تأیید و جایگزینی</button>
+        </div>
+    </dialog>
 
     <dialog id="invoiceMediaPreview" class="invoice-media-preview" aria-label="پیش‌نمایش فایل فنی" onclose="closeInvoiceMediaPreview()">
         <div class="invoice-media-preview-header">
