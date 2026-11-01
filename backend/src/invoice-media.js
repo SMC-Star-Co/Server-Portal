@@ -48,6 +48,10 @@ function sanitizeName(name) {
 function extension(name) {
   return String(name).toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
 }
+function replacementExtensionMatches(savedName,newName) {
+  const targetExt=extension(savedName), newExt=extension(newName);
+  return Boolean(TYPE_MAP[newExt] && targetExt===newExt);
+}
 function canonicalSerial(serial) {
   const value = String(serial || '').trim().toUpperCase();
   return /^[A-Z0-9_-]{1,100}$/.test(value) ? value : '';
@@ -299,7 +303,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     try{original=sanitizeName(decodeURIComponent(String(request.headers['x-file-name']||'')));}
     catch{return fail(reply,400,'نام فایل معتبر نیست.');}
     const ext=extension(original),expectedExt=extension(existing.download_name||existing.original_name);
-    if(!TYPE_MAP[ext]||ext!==expectedExt)return fail(reply,415,'فایل جایگزین باید همان پسوند فایل قبلی را داشته باشد: '+expectedExt);
+    if(!replacementExtensionMatches(existing.download_name||existing.original_name,original))return fail(reply,415,'فایل جایگزین باید همان پسوند فایل قبلی را داشته باشد: '+expectedExt);
     const contentLength=Number(request.headers['content-length']||0);
     if(Number.isFinite(contentLength)&&contentLength>MAX_BYTES)return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
     await fsp.mkdir(MEDIA_ROOT,{recursive:true});
@@ -467,4 +471,4 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     }
   });
 }
-module.exports={registerInvoiceMedia,initMediaTable,cleanMedia,__test:{isTechnician,parseSerials,canonicalSerial,downloadName,looksLike,extension,storedPath}};
+module.exports={registerInvoiceMedia,initMediaTable,cleanMedia,__test:{isTechnician,parseSerials,canonicalSerial,downloadName,looksLike,extension,storedPath,replacementExtensionMatches}};
