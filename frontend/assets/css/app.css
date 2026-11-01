@@ -504,3 +504,127 @@ select option{background:var(--paper);color:var(--ink)}
 .jalali-day-empty{height:33px}
 .jalali-picker-footer{display:flex;gap:7px}
 .jalali-picker-footer button{flex:1;min-height:31px}
+
+/* RESPONSIVE / RESTING STATE */
+html.ep-density-compact .orders-table td,html.ep-density-compact :is(.users-table,.lookup-table,.logs-table) td{padding:6px 7px}
+html.ep-density-compact .page-nav-btn{min-height:37px;padding:6px 9px}
+html.ep-density-compact .stat-card{min-height:109px;padding:11px}
+html.ep-sidebar-collapsed{--sidebar:68px}
+html.ep-sidebar-collapsed .side-menu{padding:13px 6px}
+html.ep-sidebar-collapsed .side-menu :is(.sidebar-identity,.sidebar-section-label,.sidebar-bottom,.nav-label,.ep-sidebar-caption){display:none}
+html.ep-sidebar-collapsed .page-nav-btn{justify-content:center;padding:8px}
+html.ep-sidebar-collapsed .page-nav-btn .menu-arrow-icon{order:0}
+.ep-sidebar-toggle{min-width:39px;height:39px;padding:0 9px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--muted)}
+.ep-sidebar-toggle:hover{background:var(--paper-3)}
+.ep-sidebar-toggle svg{width:17px;height:17px}
+.ep-sidebar-collapsed .ep-sidebar-toggle{background:var(--accent-soft);color:var(--accent)}
+.ep-theme-toggle[aria-pressed=true]{background:var(--accent-soft);color:var(--accent)}
+.ep-sidebar-caption{display:none}
+@media(max-width:1500px){
+  :root{--sidebar:225px}
+  .app-shell{padding:0 17px 30px}
+  .top-header{margin:0 -17px 21px;padding:0 17px}
+  .dashboard-layout{gap:16px}
+  .brand-card{flex:0 0 215px}
+  .last-refresh-label{display:none}
+  .stat-grid{gap:9px}
+  .stat-card{padding:14px}
+  .report-chart-layout{gap:16px}
+}
+@media(max-width:1150px){
+  :root{--sidebar:195px}
+  .brand-card{flex:0 0 175px}
+  .brand-card .brand-subtitle{display:none}
+  .brand-title{font-size:14px}
+  .top-header-inner{gap:11px}
+  .top-search-wrap{max-width:360px}
+  .header-role-box,.header-user-box{display:none}
+  .ep-theme-label,.ep-density-label{display:none}
+  .home-filters{gap:5px}
+  .side-menu{padding:13px 7px}
+  .sidebar-section-label span{display:none}
+  .advanced-search-grid,.logs-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .report-legend-list{grid-template-columns:1fr}
+}
+@media(max-width:920px){
+  .top-search-wrap{flex:1;min-width:100px}
+  .search-hint-key{display:none}
+  .header-refresh-box{gap:3px}
+  .last-refresh-time{display:none}
+  .header-logout-btn{padding:8px}
+  .auth-card{padding:30px}
+  .auth-story{padding:28px}
+  .auth-story-content h2{font-size:34px}
+  .report-chart-layout{grid-template-columns:1fr}
+  .report-legend-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .management-grid,.user-modal-grid{grid-template-columns:1fr}
+  .technicians-list.compact-technicians{grid-template-columns:1fr 1fr}
+  .stat-card{min-height:116px}
+  .stat-value{font-size:26px}
+}
+@media(max-width:740px){
+  .app-shell{padding:0 11px 25px}
+  .top-header{margin:0 -11px 15px;padding:10px 11px}
+  .top-header-inner{min-height:0;flex-wrap:wrap;gap:8px}
+  .brand-card{flex:1 1 100px}
+  .brand-icon{width:37px;height:37px;flex:0 0 37px}
+  .top-actions{flex:1 1 100%;gap:6px;justify-content:space-between}
+  .top-search-wrap{flex:1 1 170px;max-width:none}
+  .top-search{height:38px;padding-left:12px}
+  .account-actions{gap:5px}
+  .header-refresh-box,.header-logout-btn,.ep-mobile-menu{min-width:36px;height:37px;padding:0 6px}
+  .last-refresh-label,.last-refresh-time{display:none}
+  .ep-mobile-menu{display:inline-grid;place-items:center}
+  .ep-density-toggle,.ep-sidebar-toggle{display:none}
+  .ep-theme-toggle{min-width:36px;height:37px;padding:0}
+  .dashboard-layout{display:block}
+  .side-menu{display:none;position:fixed;z-index:70;right:11px;top:116px;width:min(290px,calc(100vw - 22px));height:auto;max-height:calc(100dvh - 125px);box-shadow:var(--shadow-lift)}
+  html.ep-mobile-nav-open .side-menu{display:flex}
+  html.ep-sidebar-collapsed .side-menu{width:min(290px,calc(100vw - 22px));padding:14px 10px}
+  html.ep-sidebar-collapsed .side-menu :is(.sidebar-identity,.sidebar-section-label,.sidebar-bottom,.nav-label){display:flex}
+  html.ep-sidebar-collapsed .side-menu .page-nav-btn{justify-content:space-between}
+  html.ep-sidebar-collapsed .side-menu .page-nav-btn .menu-arrow-icon{order:-1}
+  .ep-page-context{margin-bottom:16px;align-items:flex-start}
+  .ep-page-context h2{font-size:19px}
+  .ep-page-context p{font-size:10px}
+  .ep-context-date{display:none}
+  .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-card{min-height:110px}
+  .home-orders-toolbar{padding:12px}
+  .home-filters{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px}
+  .home-filters .side-menu-btn{flex:0 0 auto}
+  .form-grid,.management-grid,.account-form-grid,.advanced-search-grid,.logs-filter-grid,.lookup-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .modal-overlay{padding:7px}
+  .portal-modal-body{padding:11px}
+  .modal-card{max-height:calc(100dvh - 14px)}
+  .portal-modal-card{max-height:calc(100dvh - 14px)}
+  .ops-modal-card .management-grid{grid-template-columns:1fr}
+  .ops-summary-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lookups-layout{grid-template-columns:1fr}
+  .lookup-tabs-card{position:static}
+  .reports-control-grid,.reports-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .permission-category-grid{grid-template-columns:1fr}
+  .auth-story{display:none}
+  .auth-frame{grid-template-columns:1fr;min-height:0;max-width:500px}
+  .auth-page{padding:20px}
+}
+@media(max-width:420px){
+  .top-search-wrap{flex:1 1 100%;order:2}
+  .top-actions{flex-wrap:wrap}
+  .stat-card{padding:12px}
+  .stat-value{font-size:25px}
+  .home-intro h3{font-size:14px}
+  .form-grid,.advanced-search-grid,.logs-filter-grid,.account-form-grid,.lookup-editor-grid{grid-template-columns:1fr}
+  .account-profile-summary{grid-template-columns:1fr}
+  .reports-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .report-legend-list{grid-template-columns:1fr}
+  .auth-card{padding:28px 22px}
+  .auth-welcome{font-size:24px}
+  .modal-overlay{padding:4px}
+  .modal-card{border-radius:9px}
+  .portal-modal-head{padding:12px}
+  .portal-modal-body{padding:10px}
+  .portal-modal-footer{flex-wrap:wrap}
+  .technicians-list.compact-technicians{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
