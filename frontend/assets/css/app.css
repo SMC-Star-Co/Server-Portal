@@ -628,3 +628,12 @@ html.ep-sidebar-collapsed .page-nav-btn .menu-arrow-icon{order:0}
   .technicians-list.compact-technicians{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Last-mile support for dynamically rendered operations and account surfaces */
+.ops-technical-column,.ops-sales-column,.workspace-page,.home-stat-grid,.report-controls-card,.grouped-users-table,.app-toast{min-width:0}
+.stat-card-all:before{background:var(--accent)}
+.serial-manage-btn{font-weight:800}
+.ops-related-invoice{font-weight:840;color:var(--accent);direction:ltr}
+.polished-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.polished-info-item{background:var(--paper-2)}
+.app-toast{font-size:11px;font-weight:800}
