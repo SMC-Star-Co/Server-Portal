@@ -2790,7 +2790,7 @@ const API_URL = '/api';
             }
         ];
 
-        const REPORT_PIE_COLORS = ['#2563eb', '#16a34a', '#d97706', '#dc2626', '#4f46e5', '#0891b2', '#7c3aed', '#be123c', '#0f766e', '#9333ea', '#65a30d', '#ea580c'];
+        const REPORT_PIE_COLORS = ['#176d64', '#985d36', '#267d80', '#8e7396', '#53836d', '#c08059', '#486d84', '#a05e6e', '#618d82', '#83755d', '#477a78', '#b88c65'];
 
         function getReportDateRange() {
             const startDate = readSegmentedJalaliDate('report_start_date');
