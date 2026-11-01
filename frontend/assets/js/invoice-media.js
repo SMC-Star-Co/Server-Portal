@@ -43,6 +43,11 @@ function openInvoiceMediaFromOps() {
   const id = mediaElement('edit_order_id')?.value;
   if (!id) return;
   invoiceMedia.orderId = String(id);
+  invoiceMedia.invoice = '';
+  invoiceMedia.files = [];
+  invoiceMedia.serials = [];
+  invoiceMedia.technician = false;
+  mediaElement('invoiceMediaUploader').hidden = true;
   invoiceMedia.activeSerial = null;
   invoiceMedia.selectedFiles = {serial:[], invoice:[]};
   invoiceMedia.pendingSerial = null;
@@ -63,6 +68,8 @@ function closeInvoiceMediaModal() {
   }
   const modal = mediaElement('invoiceMediaModal');
   if (modal) modal.style.display = 'none';
+  invoiceMedia.selectedFiles={serial:[],invoice:[]};
+  invoiceMedia.pendingSerial=null;
   invoiceMedia.generation++;
   releaseMediaThumbnails();
   const preview = mediaElement('invoiceMediaPreview');
@@ -83,6 +90,7 @@ function updateInvoiceMediaTarget() {
   updateInvoiceMediaSelection();
 }
 function setInvoiceMediaUploadScope(scope) {
+  if (invoiceMedia.uploading) return;
   invoiceMedia.uploadScope = scope === 'serial' ? 'serial' : 'invoice';
   for (const key of ['invoice','serial']) {
     const chosen = invoiceMedia.uploadScope === key;
@@ -173,6 +181,9 @@ function updateInvoiceMediaSelection() {
   });
   button.disabled=invoiceMedia.uploading || !files.length || invalid || !invoiceMedia.technician || !serialAvailable;
   if(choose)choose.disabled=invoiceMedia.uploading || !invoiceMedia.technician || !serialAvailable;
+  for (const id of ['invoiceMediaScopeSerial','invoiceMediaScopeInvoice']) {
+    const tab=mediaElement(id);if(tab)tab.disabled=invoiceMedia.uploading;
+  }
 }
 async function refreshInvoiceMedia() {
   const id = invoiceMedia.orderId;
