@@ -218,3 +218,195 @@ dialog.invoice-media-preview::backdrop {background:rgba(4,11,24,.88);}
  .invoice-media-serial-chip {padding:7px;}
  .invoice-media-serial-chip strong {font-size:10px;}
 }
+
+
+
+/* Compact media workspace refinements — no global Portal selectors modified. */
+#invoiceMediaSelection[hidden] { display:none !important; }
+.invoice-media-modal-card {
+  width:min(1480px,calc(100vw - 22px));
+  max-width:1480px;
+  height:min(820px,94vh);
+  border-radius:18px;
+}
+.invoice-media-modal-card .invoice-media-head {padding:12px 18px;}
+.invoice-media-modal-card .portal-modal-title {font-size:16px;}
+.invoice-media-modal-card .portal-modal-subtitle {font-size:10px;}
+.invoice-media-modal-card .invoice-media-modal-body {
+  grid-template-columns:minmax(265px,295px) minmax(0,1fr);
+  gap:12px;padding:12px;
+}
+.invoice-media-composer {padding:13px 12px;border-radius:13px;}
+.invoice-media-panel-heading {margin-bottom:8px;}
+.invoice-media-panel-heading strong,.invoice-media-browser-top strong {font-size:13px;}
+.invoice-media-tabbar {margin-bottom:10px;padding:3px;}
+.invoice-media-tab {padding:7px 5px;font-size:11px;}
+.invoice-media-context {font-size:10px;margin-bottom:7px;line-height:1.55;}
+.invoice-media-label {font-size:10px;margin-bottom:5px;}
+#invoiceMediaSerialSelect {
+  appearance:none;-webkit-appearance:none;
+  height:34px;min-height:34px;
+  padding:5px 31px 5px 25px;
+  margin-bottom:5px;
+  border:1px solid #b9d0ee;
+  border-radius:9px;
+  outline:none;
+  font-size:12px;font-weight:850;
+  letter-spacing:.1px;
+  color:#153d78;
+  background-color:#f7faff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233b72bd' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 9px center;
+  background-size:15px;
+  box-shadow:0 2px 7px rgba(21,67,130,.045);
+}
+#invoiceMediaSerialSelect:hover {border-color:#78a8e8;background-color:#f0f6ff;}
+#invoiceMediaSerialSelect:focus-visible {border-color:#4d8ce4;box-shadow:0 0 0 3px rgba(73,133,228,.16);}
+.invoice-media-dropzone {min-height:110px;padding:10px 8px;gap:5px;border-radius:12px;}
+.invoice-media-drop-icon {width:32px;height:32px;border-radius:10px;font-size:18px;}
+.invoice-media-dropzone strong {font-size:11px;}
+.invoice-media-dropzone small {font-size:9px;}
+.invoice-media-browse {padding:5px 11px;}
+.invoice-media-selection {margin:9px 0;padding:8px;}
+.invoice-media-pending-list {max-height:145px;gap:4px;}
+.invoice-media-pending-row {padding:5px;gap:5px;}
+.invoice-media-preview-name {display:none !important;}
+.invoice-media-upload-button {padding:9px 8px;border-radius:9px;}
+.invoice-media-browser {padding:0 2px 8px;}
+.invoice-media-browser-top {margin-bottom:9px;}
+.invoice-media-view-tabs {margin-bottom:9px;}
+.invoice-media-view-heading {margin-bottom:9px;}
+.invoice-media-serial-selector {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(116px,1fr));
+  gap:6px;
+}
+.invoice-media-serial-chip {
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  padding:6px 8px;
+  gap:4px;
+  min-height:36px;
+  border-radius:9px;
+  box-shadow:none;
+}
+.invoice-media-serial-chip strong {
+  flex:1 1 83px;
+  font-size:10px;
+  font-weight:850;
+  grid-column:auto;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  letter-spacing:0;
+}
+.invoice-media-serial-position {
+  order:-1;
+  grid-column:auto;
+  grid-row:auto;
+  font-size:9px;
+}
+.invoice-media-serial-total {
+  grid-column:auto;
+  font-size:9px;
+  padding:2px 6px;
+  border-radius:5px;
+}
+.invoice-media-serial-file-panel {
+  padding:9px 10px;
+  border-radius:11px;
+}
+.invoice-media-serial-file-header {margin-bottom:9px;}
+.invoice-media-list {
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+.invoice-media-file-card {border-radius:10px;box-shadow:0 2px 8px rgba(15,23,42,.03);}
+.invoice-media-file-card:hover {transform:none;}
+.invoice-media-file-thumb {
+  aspect-ratio:16/9;
+  cursor:default !important;
+  pointer-events:none;
+}
+.invoice-media-file-thumb.is-previewable {cursor:default !important;}
+.invoice-media-file-meta {padding:6px 7px 4px;gap:4px;}
+.invoice-media-file-name {font-size:10px;}
+.invoice-media-file-meta>span {font-size:9px;}
+.invoice-media-file-actions {padding:4px 6px 7px;gap:3px;}
+.invoice-media-file-actions button {font-size:9px;padding:5px 6px;}
+.invoice-media-action-edit {color:#8755bf !important;background:#f6f0ff !important;border-color:#ead9ff !important;}
+.invoice-media-ext-tile {width:55px;height:62px;border-radius:10px;}
+.invoice-media-ext-tile span {font-size:14px;}
+.invoice-media-serial-file-header .secondary-btn {padding:6px 8px;font-size:9px;}
+.invoice-media-modal-card .invoice-media-modal-footer {
+  padding:8px 14px;
+  justify-content:flex-end;
+}
+
+/* Technician-only replacement dialog; attachment filename and serial remain fixed. */
+dialog.invoice-media-replace-dialog {
+  width:min(510px,calc(100vw - 24px));
+  max-width:calc(100vw - 24px);
+  padding:0;
+  border:1px solid #d6e2f3;
+  border-radius:16px;
+  background:#fff;
+  color:#19345b;
+  box-shadow:0 25px 90px rgba(15,38,78,.28);
+  overflow:hidden;
+}
+dialog.invoice-media-replace-dialog::backdrop {background:rgba(12,30,61,.7);}
+.invoice-media-replace-heading {
+  display:flex;justify-content:space-between;gap:16px;
+  padding:17px 20px;
+  background:#f6f9fe;
+  border-bottom:1px solid #e5ecf7;
+}
+.invoice-media-replace-heading h3 {font-size:16px;font-weight:850;margin:0 0 4px;}
+.invoice-media-replace-heading p {font-size:11px;line-height:1.8;color:#71819b;margin:0;}
+.invoice-media-replace-close {
+  flex:0 0 30px;height:30px;
+  border:1px solid #dee7f3;border-radius:8px;
+  background:white;color:#586d8a;cursor:pointer;font-size:20px;
+}
+.invoice-media-replace-body {padding:19px 20px;display:flex;flex-direction:column;gap:9px;}
+.invoice-media-replace-body label {font-size:11px;font-weight:800;}
+.invoice-media-replace-name {
+  direction:ltr;unicode-bidi:plaintext;overflow-wrap:anywhere;
+  padding:10px;border-radius:9px;background:#eef5ff;
+  border:1px solid #d6e7ff;color:#1e54a5;font-size:12px;font-weight:850;
+}
+#invoiceMediaReplaceInput {
+  width:100%;max-width:100%;min-width:0;padding:10px;
+  border:1px solid #d7e3f1;border-radius:10px;
+  background:#fff;font-size:11px;
+}
+.invoice-media-replace-selected {font-size:11px;color:#64748b;overflow-wrap:anywhere;}
+.invoice-media-replace-warning {
+  padding:11px;border-radius:9px;font-size:11px;line-height:1.9;
+  background:#fff8ed;color:#865b20;border:1px solid #f8e6ca;
+}
+.invoice-media-replace-footer {
+  display:flex;justify-content:flex-end;gap:9px;
+  padding:12px 20px;border-top:1px solid #e9eef7;
+}
+.invoice-media-replace-footer button {padding:8px 16px;font-size:11px;}
+@media(max-width:1160px){
+  .invoice-media-modal-card .invoice-media-modal-body {grid-template-columns:260px minmax(0,1fr);}
+  .invoice-media-list {grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media(max-width:780px){
+  .invoice-media-modal-card .invoice-media-modal-body {
+    display:flex;flex-direction:column;overflow-y:auto;padding:9px;
+  }
+  .invoice-media-composer,.invoice-media-browser {overflow:visible;flex:0 0 auto;}
+  .invoice-media-list {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .invoice-media-serial-selector {grid-template-columns:repeat(auto-fill,minmax(112px,1fr));}
+}
+@media(max-width:450px){
+  .invoice-media-list {grid-template-columns:repeat(2,minmax(0,1fr));}
+}
