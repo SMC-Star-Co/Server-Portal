@@ -123,6 +123,74 @@ function fail(reply,code,message) { return reply.code(code).send({error:message}
 function safeDisposition(name) {
   return "attachment; filename=\"download\"; filename*=UTF-8''" + encodeURIComponent(sanitizeName(name));
 }
+// Thumbnails are separate low-resolution previews. The original upload is never modified.
+const thumbnailJobs = new Map();
+function previewableImage(mime) { return String(mime||'').startsWith('image/'); }
+function previewableVideo(mime) { return String(mime||'').startsWith('video/'); }
+function runThumbnailCommand(program,args,timeoutMs=30000) {
+  return new Promise((resolve,reject)=>{
+    const proc=spawn(program,args,{shell:false,stdio:['ignore','ignore','pipe']});
+    let errorText='',finished=false;
+    const timer=setTimeout(()=>proc.kill('SIGKILL'),timeoutMs);
+    proc.stderr.on('data',part=>{if(errorText.length<600)errorText+=part.toString()});
+    proc.on('error',err=>{if(!finished){finished=true;clearTimeout(timer);reject(err)}});
+    proc.on('close',code=>{if(!finished){finished=true;clearTimeout(timer);
+      code===0?resolve():reject(new Error((errorText||'Thumbnail generation failed').slice(0,600)));
+    }});
+  });
+}
+async function generateMediaThumbnail(row,pool) {
+  if (!previewableImage(row.mime_type) && !previewableVideo(row.mime_type)) return null;
+  if (row.thumbnail_name) {
+    try { await fsp.access(storedPath(row.thumbnail_name));return row.thumbnail_name; } catch {}
+  }
+  const key=String(row.id);
+  if(thumbnailJobs.has(key))return thumbnailJobs.get(key);
+  const task=(async()=>{
+    const source=storedPath(row.stored_name);
+    await fsp.access(source);
+    const image=previewableImage(row.mime_type);
+    const candidate=randomUUID()+'-thumb.'+(image?'webp':'jpg');
+    const destination=storedPath(candidate);
+    try{
+      if(image){
+        await runThumbnailCommand('magick',[
+          '-limit','memory','128MiB','-limit','map','256MiB','-limit','disk','512MiB',
+          '-limit','area','60MP',source+'[0]','-auto-orient',
+          '-thumbnail','420x300>','-background','#e8eef7','-gravity','center',
+          '-extent','420x300','-strip','-quality','78',destination
+        ]);
+      }else{
+        const videoArgs=seconds=>['-hide_banner','-loglevel','error','-nostdin','-y',
+          '-ss',seconds,'-i',source,'-map','0:v:0','-frames:v','1',
+          '-vf','scale=420:300:force_original_aspect_ratio=decrease,pad=420:300:(ow-iw)/2:(oh-ih)/2',
+          '-q:v','5',destination];
+        try{await runThumbnailCommand('ffmpeg',videoArgs('1'),30000)}
+        catch{await runThumbnailCommand('ffmpeg',videoArgs('0'),30000)}
+      }
+      const file=await fsp.stat(destination);
+      if(!file.size || file.size>3*1024*1024)throw new Error('Invalid thumbnail size');
+      const updated=await pool.query(
+        'UPDATE invoice_media SET thumbnail_name=$1, thumbnail_bytes=$2 WHERE id=$3 AND order_id=$4 RETURNING thumbnail_name',
+        [candidate,file.size,row.id,row.order_id]);
+      if(!updated.rowCount) {
+        await fsp.unlink(destination).catch(()=>{});
+        return null;
+      }
+      if(row.thumbnail_name && row.thumbnail_name!==candidate) {
+        await fsp.unlink(storedPath(row.thumbnail_name)).catch(()=>{});
+      }
+      return candidate;
+    }catch(error){
+      await fsp.unlink(destination).catch(()=>{});
+      console.warn('Thumbnail not available for',row.id,':',error.message);
+      return null;
+    }
+  })().finally(()=>thumbnailJobs.delete(key));
+  thumbnailJobs.set(key,task);
+  return task;
+}
+
 function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent}) {
   // Keep the request as a stream: a 500-MB upload must not be buffered in Node memory.
   fastify.addContentTypeParser('application/octet-stream', (request, payload, done) => done(null,payload));
@@ -215,6 +283,21 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       if(error.message==='FILE_TOO_LARGE')return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
       return fail(reply,500,'ذخیره فایل ناموفق بود.');
     }finally{await fsp.unlink(temp).catch(()=>{});}
+  });
+
+  fastify.get('/api/orders/:id/media/:mediaId/thumbnail',async(request,reply)=>{
+    if(!requirePermission(request,reply,'orders.view'))return;
+    const orderId=validId(request.params.id),mediaId=validId(request.params.mediaId);
+    if(!orderId||!mediaId)return fail(reply,400,'شناسه نامعتبر است.');
+    const found=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[orderId,mediaId]);
+    if(!found.rowCount)return fail(reply,404,'فایل پیدا نشد.');
+    const row=found.rows[0];
+    if(!previewableImage(row.mime_type)&&!previewableVideo(row.mime_type))return fail(reply,404,'این فایل پیش‌نمایش تصویری ندارد.');
+    const name=await generateMediaThumbnail(row,pool);
+    if(!name)return fail(reply,404,'ساخت پیش‌نمایش امکان‌پذیر نشد.');
+    const mime=name.endsWith('.webp')?'image/webp':'image/jpeg';
+    return reply.header('Content-Type',mime).header('Cache-Control','private,max-age=180')
+      .header('X-Content-Type-Options','nosniff').send(fs.createReadStream(storedPath(name)));
   });
 
   fastify.delete('/api/orders/:id/media/:mediaId',async(request,reply)=>{
