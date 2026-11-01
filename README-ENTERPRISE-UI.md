@@ -11,7 +11,7 @@ Rewritten directly:
 - `frontend/assets/js/enterprise.js`: visual preferences, dynamic titles, sidebar and keyboard controls.
 - `frontend/test/enterprise-ui.test.js`: regression checks.
 
-`frontend/assets/css/enterprise.css` is now an empty migration marker. No old override styles remain.
+`frontend/assets/css/enterprise.css` has been deleted, and its stylesheet link removed. No old override styles remain.
 
 No database, environment, deployment or production changes. No untested dependency version changes.
 
