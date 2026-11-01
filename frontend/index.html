@@ -850,7 +850,7 @@
                 <div class="modal-section-card invoice-media-uploader" id="invoiceMediaUploader" hidden>
                     <div class="section-title-row"><div class="section-title-text">۱. آپلود عکس یا فایل فاکتور</div></div>
                     <div class="inline-form-row">
-                        <input type="file" id="invoiceMediaInvoiceFiles" multiple>
+                        <input type="file" id="invoiceMediaInvoiceFiles" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods">
                         <button type="button" class="soft-primary-btn" onclick="uploadInvoiceMedia('invoice')">آپلود فایل فاکتور</button>
                     </div>
                     <div class="invoice-media-hint">نام خروجی با شماره فاکتور آغاز می‌شود؛ مانند 40428-01.jpg</div>
@@ -861,10 +861,10 @@
                         <select id="invoiceMediaSerialSelect"></select>
                     </div>
                     <div class="inline-form-row">
-                        <input type="file" id="invoiceMediaSerialFiles" multiple>
+                        <input type="file" id="invoiceMediaSerialFiles" multiple accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods">
                         <button type="button" class="soft-primary-btn" onclick="uploadInvoiceMedia('serial')">آپلود برای این سریال</button>
                     </div>
-                    <div class="invoice-media-hint">نام خروجی با شماره فاکتور و سریال آغاز می‌شود؛ مانند 40428-2M201002KG-01.jpg</div>
+                    <div class="invoice-media-hint">نام خروجی با سریال سرور آغاز می‌شود؛ مانند 2M201002KG-01.jpg</div>
                 </div>
                 <div class="invoice-media-hint">فایل اصلی بدون فشرده‌سازی یا تغییر محتوا نگهداری می‌شود. سقف هر فایل: ۵۰۰ مگابایت. تصاویر، ویدیوها و اسناد مجازند.</div>
                 <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
