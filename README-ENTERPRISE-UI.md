@@ -1,85 +1,36 @@
-# Enterprise UI E1 — Server Portal
+# Portal 2.0 — Enterprise UI Rebuild
 
-این نسخه در Branch مستقل `feature/enterprise-ui-v1` از آخرین Commit تأییدشده `develop` ساخته شده است. Branch `main`، `develop`، دیتابیس و فایل `.env` تغییر داده نشده‌اند.
+Branch: `feature/enterprise-ui-v1`
 
-## معماری
+This revision replaces the previous appearance rather than layering over it.
 
-- `frontend/assets/css/enterprise.css`: سیستم طراحی اختصاصی RTL با توکن‌های دو تم روشن/تاریک؛ پوشش همه صفحات، هدر، ناوبری، فاکتورها، بایگانی، گزارش‌ها، کاربران، تنظیمات و پنجره‌های مدیا.
-- `frontend/assets/js/enterprise.js`: حالت روشن/تاریک، حالت فشرده، جمع‌شدن منوی سمت راست در دسکتاپ، منوی موبایل، عنوان پویا و میانبر جستجو.
-- `frontend/index.html`: افزودن viewport و بارگذاری لایه طراحی؛ شناسه‌ها و event handlerهای اصلی حفظ شده‌اند.
-- `frontend/test/enterprise-ui.test.js`: تست رگرسیون ساختار UI بدون وابستگی خارجی.
-- `backend/package.json`: اسکریپت واقعی `npm test` و `npm run check`؛ بدون دست‌کاری dependency lock.
+Rewritten directly:
+- `frontend/assets/css/app.css`: full core interface, RTL layout, login, dashboard, navigation, order tables, operations forms, users, roles, lookups, archive, reports, logs, account, date picker, responsive styles and both themes.
+- `frontend/assets/css/invoice-media.css`: complete media manager redesign.
+- `frontend/index.html`: rebuilt login, header, sidebar and dashboard, live KPI and status filters while retaining existing functional element IDs.
+- `frontend/assets/js/enterprise.js`: visual preferences, dynamic titles, sidebar and keyboard controls.
+- `frontend/test/enterprise-ui.test.js`: regression checks.
 
-## تنظیمات نمایش
+`frontend/assets/css/enterprise.css` is now an empty migration marker. No old override styles remain.
 
-- تغییر حالت روشن/تاریک از نوار بالایی یا صفحه ورود.
-- تراکم نمایش عادی/فشرده از نوار بالایی.
-- جمع‌کردن/بازکردن منوی کناری روی دسکتاپ.
-- ناوبری موبایل با منوی کشویی؛ انتخاب هر بخش منو را می‌بندد.
-- `Ctrl+K` (در macOS `Cmd+K`) تمرکز روی جستجوی فعلی، `Esc` بستن منوی موبایل، `Alt+Shift+D` تغییر تم.
-- تنظیمات ظاهری فقط در `localStorage` همان مرورگر ذخیره می‌شوند؛ هیچ اطلاعات فاکتور، توکن یا دسترسی در این تنظیمات ذخیره نمی‌شود.
-- سازگاری با `prefers-reduced-motion`.
+No database, environment, deployment or production changes. No untested dependency version changes.
 
-## نصب در محیط تست
-
-**این دستورها را فقط روی `smc-server` اجرا کنید.**
+## Test-only checkout
 
 ```bash
 cd /root/portal
 git status -sb
 git fetch origin
-git switch --track origin/feature/enterprise-ui-v1
-git status -sb
+git switch feature/enterprise-ui-v1
+git pull --ff-only origin feature/enterprise-ui-v1
 ```
 
-اگر قبلاً این Branch را در سرور محلی Checkout کرده‌اید، به‌جای `--track` از `git switch feature/enterprise-ui-v1` و سپس `git pull --ff-only origin feature/enterprise-ui-v1` استفاده کنید.
+If branch is not local: `git switch --track origin/feature/enterprise-ui-v1`.
 
-این نسخه برای رابط وب نیاز به Build مجدد backend ندارد. فایل‌های frontend توسط Nginx به‌صورت bind mount سرو می‌شوند. مرورگر را با Ctrl+F5 بازخوانی کنید.
-
-### آزمون‌های خودکار
+Test UI with the already-installed server or:
 
 ```bash
-cd /root/portal
-docker exec node_app node --test test/invoice-media.test.js
-# تست UI با Node روی میزبان (اگر Node نصب است):
-node --test frontend/test/enterprise-ui.test.js
-# یا از داخل یک کانتینر موقت Node، بدون تغییر سرویس‌ها:
-docker run --rm -v "$PWD":/work -w /work node:24-alpine node --test frontend/test/enterprise-ui.test.js
+docker run --rm --network none -v "$PWD":/work:ro -w /work node:24-alpine node --test frontend/test/enterprise-ui.test.js
 ```
 
-`npm test` اکنون در Backend همه تست‌های Node را اجرا می‌کند و `npm run check` صحت نحوی فایل‌های اصلی را کنترل می‌کند.
-
-### آزمون دستی قبل از انتقال به develop
-
-- ورود و خروج، صفحه اصلی و جستجو، ثبت فاکتور، مدیریت تکنسین/فروش، سریال‌ها و مدیا؛ بدون تغییر محتوای داده.
-- بایگانی و فیلترها، مدیریت کاربران و دسترسی‌ها، مدیریت اطلاعات پایه، گزارش و لاگ، تنظیمات حساب کاربری.
-- هر کدام با حساب تکنسین و فروش و مدیر و با مجوزهای مختلف.
-- تم روشن و تاریک در صفحات، جدول‌ها، وضعیت‌های رنگی، فرم‌ها، پنجره‌های تودرتو و پیش‌نمایش تصویر/ویدیو.
-- نمایش در عرض ۱۴۴۰ و ۱۲۸۰ و ۹۰۰ و ۷۶۸ و ۳۹۰ پیکسل؛ تست منوی موبایل و اسکرول جدول.
-- تداوم تم و تراکم پس از Refresh و عدم اثر آن بر مجوزها و داده‌ها.
-
-## بررسی و ارتقای وابستگی‌ها (بدون ریسک روی تولید)
-
-تاریخ بررسی: ۲۰۲۶/۱۱/۰۱.
-
-| وابستگی | پروژه | نسخه جدید مرجع | تصمیم فعلی |
-| --- | --- | --- | --- |
-| Node.js | 24 LTS (Docker) | 26 LTS | **ارتقای Major انجام نشد**؛ نیازمند تست کامل و بررسی سازگاری Alpine/کتابخانه‌های Native است. Node 24 هنوز پشتیبانی می‌شود. |
-| Fastify | ^5.8.5 (lock) | 5.12.7 | در همان Major ارتقاپذیر است، اما تا زمان اجرای `npm update` و تست Integration روی سرور تست، lock را دست‌کاری نکنید. |
-| @fastify/cors | ^11.2.0 | 11.3.1 | نسخه 11 با Fastify 5 سازگار است؛ نیازمند تولید دوباره lock و تست. |
-| pg | ^8.21.0 | 8.23.1 | نسخه 8؛ نیازمند تست اتصال، Query و تراکنش‌های فاکتور. |
-| PostgreSQL | 15 | جدیدتر | ارتقای Major به‌خاطر دیتای Volume موجود بدون برنامه Migration انجام نشد. |
-
-برای به‌روزرسانی بعد از پاس‌شدن تست طراحی، روی **یک کپی محیط تست** نسخه و lock را با دستورهای `npm outdated` و `npm update` تجدید کنید، سپس `npm ci`، تست‌ها و Smoke Test کامل اجرا کنید. هیچ قفل وابستگی به‌صورت دستی و بدون امکان نصب واقعی بازنویسی نشده است.
-
-**مهم:** اگر `.env` حاوی رمزها و کلیدهای واقعی باشد و در مخزن عمومی Commit شده باشد، قبل از استفاده خارج از محیط آزمایشی باید دسترسی و چرخش رمزها جداگانه بررسی شود. این بازطراحی `.env` را باز یا تغییر نمی‌دهد.
-
-## بازگشت
-
-Branch فعلی `develop` و Snapshot `snapshot/media-manager-2026-11-01` محفوظ‌اند:
-
-```bash
-git switch develop
-```
-
-اجرای دستورات `git reset --hard`، حذف Volume پایگاه داده یا تغییر مسیر مدیا برای بازگشت ظاهری لازم نیست.
+Reopen the test portal with Ctrl+F5. Verify light and dark modes, all seven pages, every dialog, serial/media workflows, access permissions, mobile and desktop breakpoints. Do not merge into `develop` without browser and end-to-end testing.
