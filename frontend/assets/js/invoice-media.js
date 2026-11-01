@@ -87,7 +87,7 @@ async function downloadInvoiceMedia(file){
   try{
     const blob=await mediaBlob(file,true);
     const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=file.original_name;
+    const a=document.createElement('a');a.href=url;a.download=file.download_name||file.original_name;
     document.body.append(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),30000);
   }catch(e){showAppToast(e.message||'دانلود ناموفق بود')}
