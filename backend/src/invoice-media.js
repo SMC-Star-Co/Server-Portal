@@ -173,6 +173,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     try {
       await pipeline(request.body,monitor,fs.createWriteStream(temp,{flags:'wx',mode:0o600}));
       if(bytes<1)return fail(reply,400,'فایل خالی است.');
+      const sourceHash=hash.digest('hex');
       if(!looksLike(ext,header))return fail(reply,415,'محتوای فایل با نوع انتخاب‌شده مطابقت ندارد.');
       const client=await pool.connect();
       let saved=false;
@@ -182,7 +183,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         const current=await client.query('SELECT serials,invoice_number FROM orders WHERE id=$1 FOR UPDATE',[id]);
         if(!current.rowCount)throw new Error('INVOICE_MISSING');
         if(serial&&!parseSerials(current.rows[0].serials).includes(serial))throw new Error('SERIAL_MISSING');
-        const duplicate=await client.query('SELECT id FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 AND source_hash=$4 LIMIT 1',[id,scope,serial||'',hash.digest('hex')]);
+        const duplicate=await client.query('SELECT id FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 AND source_hash=$4 LIMIT 1',[id,scope,serial||'',sourceHash]);
         if(duplicate.rowCount){
           await client.query('COMMIT');
           return {success:true,duplicate:true,media_id:duplicate.rows[0].id};
@@ -195,7 +196,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         await fsp.rename(temp,storedPath(finalName));
         saved=true;
         const inserted=await client.query('INSERT INTO invoice_media (order_id,stored_name,original_name,download_name,mime_type,original_bytes,stored_bytes,source_hash,compression_mode,uploaded_by,uploader_name,media_scope,serial_number,sequence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',
-          [id,finalName,original,name,mime,bytes,bytes,hash.copy?null:null,'original',request.user.id,request.user.full_name||request.user.username,scope,serial,seq]);
+          [id,finalName,original,name,mime,bytes,bytes,sourceHash,'original',request.user.id,request.user.full_name||request.user.username,scope,serial,seq]);
         await client.query('COMMIT');
         await writeActivityLog({request,action_type:'order.media_uploaded',entity_type:'order',entity_id:String(id),
           invoice_number:current.rows[0].invoice_number,message:'فایل فنی به فاکتور اضافه شد.',
