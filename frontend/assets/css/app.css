@@ -8,9 +8,9 @@
 :root,html[data-theme="light"]{
 color-scheme:light;
 --canvas:#f3f5f2;--paper:#ffffff;--paper-2:#f9faf8;--paper-3:#ebefeb;--ink:#253239;
---ink-strong:#16262d;--muted:#6b7b80;--muted-2:#92a0a3;--line:#dfe6e2;--line-strong:#bfcbc5;
+--ink-strong:#16262d;--muted:#596b70;--muted-2:#718186;--line:#dfe6e2;--line-strong:#bfcbc5;
 --accent:#176d64;--accent-hover:#0e544d;--accent-on:#fff;--accent-soft:#e6f4f0;
---copper:#b57549;--copper-soft:#f9efe6;--teal:#177f80;--teal-soft:#e6f5f2;
+--copper:#985d36;--copper-soft:#f9efe6;--teal:#177f80;--teal-soft:#e6f5f2;
 --success:#208069;--success-soft:#e7f5ee;--warning:#aa712f;--warning-soft:#fcf3e6;
 --danger:#b64c56;--danger-soft:#fff0f0;--nav:#193136;--nav-2:#234148;
 --nav-line:#355156;--nav-text:#d7e5e2;--nav-muted:#91ada9;--overlay:rgba(15,31,34,.65);
