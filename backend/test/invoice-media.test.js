@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { __test: { sniff, isTech, diskPath } } = require('../src/invoice-media');
+const { __test: { sniff, isTech, diskPath, downloadName } } = require('../src/invoice-media');
 test('JPEG detected from bytes, not extension', () => {
   assert.equal(sniff(Buffer.from([0xff,0xd8,0xff,0xe0]))?.mime,'image/jpeg');
 });
@@ -29,4 +29,9 @@ test('Only technician-role accounts can manage', () => {
 test('Stored paths cannot traverse media folder', () => {
   assert.throws(()=>diskPath('../../etc/passwd'));
   assert.match(diskPath('a1234567-aaaa-4bbb-8ccc-123456789abc.webp'),/\.webp$/);
+});
+test('WebP conversion provides a matching download extension', () => {
+  assert.equal(downloadName('cpu.jpg', 'image/webp'), 'cpu.webp');
+  assert.equal(downloadName('screenshot.png', 'image/webp'), 'screenshot.webp');
+  assert.equal(downloadName('cpu.jpg', 'image/jpeg'), 'cpu.jpg');
 });
