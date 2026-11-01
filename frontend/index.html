@@ -922,12 +922,11 @@
                         <select id="invoiceMediaSerialSelect" onchange="updateInvoiceMediaTarget()"></select>
                         <div class="invoice-media-context">سریال‌ها از بخش «مدیریت سریال‌ها» خوانده می‌شوند.</div>
                     </div>
-                    <div id="invoiceMediaDropzone" class="invoice-media-dropzone" role="button" tabindex="0" onclick="chooseInvoiceMediaFiles()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();chooseInvoiceMediaFiles()}">
-                        <div class="invoice-media-drop-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17a4 4 0 0 1-1-7.8 6 6 0 0 1 11.6 1.7A3.5 3.5 0 0 1 18 18"></path><path d="M12 12v9m-4-5 4-4 4 4"></path></svg></div>
-                        <strong>انتخاب فایل یا کشیدن به اینجا</strong>
-                        <small>عکس، ویدیو، PDF و اسناد Office</small>
-                        <span class="invoice-media-browse">انتخاب فایل‌ها</span>
-                    </div>
+                    <button id="invoiceMediaDropzone" type="button" class="invoice-media-dropzone" onclick="chooseInvoiceMediaFiles()">
+                        <span class="invoice-media-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg></span>
+                        <span class="invoice-media-drop-copy"><strong>انتخاب فایل از سیستم</strong><small>تصویر، فیلم، PDF و اسناد Office</small></span>
+                        <span class="invoice-media-browse">انتخاب <span aria-hidden="true">←</span></span>
+                    </button>
                     <input type="file" id="invoiceMediaInvoiceFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
                     <input type="file" id="invoiceMediaSerialFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
                     <div id="invoiceMediaSelection" class="invoice-media-selection" aria-live="polite" hidden>
