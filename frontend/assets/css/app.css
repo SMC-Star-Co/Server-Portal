@@ -665,3 +665,17 @@ html.ep-sidebar-collapsed .side-menu .page-nav-btn{justify-content:space-between
 @media(prefers-reduced-motion:reduce){
 *,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* Functional finishing details for exact existing templates */
+.ops-technical-column,.ops-sales-column,.worklist-data,.workspace-page,.report-controls-card,.report-date-range-field,.ep-page-actions{min-width:0}
+.serial-manage-btn{font-weight:840}
+.brand-logo-box{background:var(--paper)}
+.header-action-box{min-width:0}
+.modal-danger-action{margin-right:auto}
+html[data-theme="dark"] .user-pill,html[data-theme="dark"] .header-logout-btn{border-color:var(--line)}
+html[data-theme="dark"] .operations-prime{background:#13312d}
+html[data-theme="dark"] .operations-details{background:var(--paper)}
+html[data-theme="dark"] .side-menu{border-left:1px solid #33514b}
+html[data-theme="dark"] .report-pie-percent{fill:#fff}
+html[data-theme="dark"] .status-Pending{background:var(--paper)}
+@media(max-width:740px){.side-menu .rail-bottom{margin-top:24px}}
