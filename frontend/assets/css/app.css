@@ -368,3 +368,66 @@ select option{background:var(--paper);color:var(--ink)}
 .info-copy-label{font-size:9px;color:var(--accent)}
 .purchase-value-pill{background:var(--cyan-soft)}
 .warranty-value-pill{background:var(--gold-soft)}
+
+/* USERS AND ACCESS MATRIX */
+.page-head-card{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:17px;background:var(--paper);border:1px solid var(--line);border-radius:11px;margin-bottom:13px}
+.page-title{font-size:15px;color:var(--ink-strong);font-weight:840}
+.page-subtitle{margin-top:4px;font-size:10px;color:var(--muted)}
+.users-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:13px}
+.users-groups-container{display:flex;flex-direction:column;gap:12px}
+.user-role-group-card{margin-bottom:0}
+.user-role-group-header{min-height:45px}
+.users-table-wrap{width:100%;border:0;border-radius:0;background:var(--paper)}
+.users-table{table-layout:fixed}.users-table th,.users-table td{padding:11px 8px}
+.user-col-order{width:12%}.user-col-name{width:24%}.user-col-username{width:23%}.user-col-role{width:18%}.user-col-status{width:11%}.user-col-actions{width:12%}
+.role-admin{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.role-technician{background:var(--cyan-soft);color:var(--cyan);border-color:transparent}
+.role-sales{background:var(--gold-soft);color:var(--gold);border-color:transparent}
+.active-yes{background:var(--success-soft);color:var(--success);border-color:transparent}
+.active-no{background:var(--danger-soft);color:var(--danger);border-color:transparent}
+.user-modal-card{max-width:1160px}
+.user-modal-card .portal-modal-body{padding:14px 18px}
+.user-modal-grid{display:grid;grid-template-columns:minmax(265px,340px) minmax(0,1fr);gap:14px;align-items:start}
+.user-modal-fields{display:flex;flex-direction:column;gap:12px}
+.role-options-grid{display:flex;flex-direction:column;gap:6px}
+.permission-grid{display:flex;flex-direction:column;gap:10px;min-width:0}
+.permission-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.permission-category-card{min-width:0;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--paper-2)}
+.permission-category-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:8px;border-bottom:1px solid var(--line);color:var(--ink-strong);font-size:11px;font-weight:800}
+.permission-category-count{border-radius:5px;padding:2px 6px;background:var(--paper);color:var(--muted);font-size:10px}
+.permission-category-items{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.permission-item{display:flex;align-items:flex-start;gap:7px;min-height:36px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink)}
+.permission-item input{width:15px;height:15px;margin:2px 0 0;flex:0 0 15px}
+.permission-item b{font-size:10px;font-weight:730}.permission-item small{display:block;font-size:9px;color:var(--muted);line-height:1.5}
+.user-modal-card .portal-modal-footer{justify-content:flex-end}
+.user-form-actions{display:flex;gap:8px;flex-wrap:wrap}
+/* MASTER DATA EDITING */
+.lookups-layout{display:grid;grid-template-columns:minmax(215px,.28fr) minmax(0,.72fr);gap:15px;align-items:start}
+.lookups-layout>div:last-child{min-width:0}
+.lookup-tabs-card,.lookup-form-card,.lookup-table-card{min-width:0;padding:15px;border:1px solid var(--line);border-radius:11px;background:var(--paper);box-shadow:var(--shadow)}
+.lookup-tabs-card{position:sticky;top:95px}
+.lookup-form-card{margin-bottom:11px}
+.lookup-table-card>.advanced-search-title{margin-bottom:12px}
+.lookup-tab-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:37px;padding:8px 10px;margin:0 0 6px;border:1px solid var(--line);border-radius:7px;background:var(--paper-2);color:var(--muted);font-size:11px;font-weight:760;text-align:right}
+.lookup-tab-btn:hover{background:var(--paper-3);color:var(--ink)}
+.lookup-tab-btn.active-lookup-tab{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.lookup-editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lookup-table-wrap{margin-top:12px}
+.lookup-table th,.lookup-table td{padding:10px 8px}
+.lookup-name-cell{font-weight:820;color:var(--ink-strong)}
+/* ARCHIVE / HIERARCHICAL DATA */
+.advanced-search-card,.logs-panel-card,.account-settings-card,.report-chart-card,.report-summary-card,.report-placeholder-card{min-width:0;padding:17px;border:1px solid var(--line);border-radius:11px;background:var(--paper);box-shadow:var(--shadow);margin-bottom:13px}
+.advanced-search-title,.logs-panel-title,.account-settings-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+.advanced-search-title strong,.logs-panel-title strong,.account-settings-title strong{display:block;font-size:13px;font-weight:840;color:var(--ink-strong)}
+.advanced-search-title span,.logs-panel-title span,.account-settings-title span{display:block;font-size:10px;color:var(--muted);margin-top:4px}
+.advanced-search-grid,.logs-filter-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;align-items:end}
+.archive-groups-container,.logs-list-container{display:flex;flex-direction:column;gap:10px}
+.archive-group-body,.log-group-body{padding:11px;background:var(--paper)}
+.archive-month-card,.archive-day-card,.log-month-card,.log-day-card{margin:0 0 8px;padding:0 0 0 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--paper)}
+.archive-month-card:last-child,.archive-day-card:last-child,.log-month-card:last-child,.log-day-card:last-child{margin-bottom:0}
+.archive-month-card .archive-group-header,.log-month-card .log-group-header{background:var(--paper-2)}
+.archive-day-card .archive-group-header,.log-day-card .log-group-header{background:var(--paper)}
+.archive-orders-table{min-width:1200px;table-layout:fixed}
+.archive-group-header,.log-group-header{font-size:11px}
+.archive-title-with-count{min-width:0}
+.archive-count-chip{font-size:9px}
