@@ -583,22 +583,4 @@ async function deleteInvoiceMedia(file) {
     await refreshInvoiceMedia();
   }catch(error){showAppToast(error.message||'حذف ناموفق بود')}
 }
-function bindInvoiceMediaDrop() {
-  const area=mediaElement('invoiceMediaDropzone');
-  if(!area)return;
-  for (const type of ['dragenter','dragover']) {
-    area.addEventListener(type,event=>{event.preventDefault();area.classList.add('is-dragging')});
-  }
-  for (const type of ['dragleave','drop']) {
-    area.addEventListener(type,event=>{event.preventDefault();area.classList.remove('is-dragging')});
-  }
-  area.addEventListener('drop',event=>{
-    if(!invoiceMedia.technician || invoiceMedia.uploading)return;
-    const input=mediaElement(invoiceMedia.uploadScope==='serial'?'invoiceMediaSerialFiles':'invoiceMediaInvoiceFiles');
-    if(!input || (invoiceMedia.uploadScope==='serial'&&!mediaElement('invoiceMediaSerialSelect')?.value))return;
-    const list=event.dataTransfer?.files;
-    if(list?.length){input.files=list;updateInvoiceMediaSelection()}
-  });
-}
-bindInvoiceMediaDrop();
 mediaElement('invoiceMediaPreview')?.addEventListener('close',closeInvoiceMediaPreview);
