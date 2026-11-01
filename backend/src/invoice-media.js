@@ -171,8 +171,8 @@ async function generateMediaThumbnail(row,pool) {
       const file=await fsp.stat(destination);
       if(!file.size || file.size>3*1024*1024)throw new Error('Invalid thumbnail size');
       const updated=await pool.query(
-        'UPDATE invoice_media SET thumbnail_name=$1, thumbnail_bytes=$2 WHERE id=$3 AND order_id=$4 RETURNING thumbnail_name',
-        [candidate,file.size,row.id,row.order_id]);
+        'UPDATE invoice_media SET thumbnail_name=$1, thumbnail_bytes=$2 WHERE id=$3 AND order_id=$4 AND stored_name=$5 RETURNING thumbnail_name',
+        [candidate,file.size,row.id,row.order_id,row.stored_name]);
       if(!updated.rowCount) {
         await fsp.unlink(destination).catch(()=>{});
         return null;
@@ -282,6 +282,86 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       request.log.error(error);
       if(error.message==='FILE_TOO_LARGE')return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
       return fail(reply,500,'ذخیره فایل ناموفق بود.');
+    }finally{await fsp.unlink(temp).catch(()=>{});}
+  });
+
+  // Replace one attachment in place: never alter its generated download filename,
+  // sequence number, invoice or serial association. Upload is streamed to disk.
+  fastify.put('/api/orders/:id/media/:mediaId',{bodyLimit:MAX_BYTES},async(request,reply)=>{
+    if(!requirePermission(request,reply,'orders.view'))return;
+    if(!isTechnician(request.user))return fail(reply,403,'فقط تکنسین فنی اجازه جایگزینی فایل دارد.');
+    const id=validId(request.params.id),mid=validId(request.params.mediaId);
+    if(!id||!mid)return fail(reply,400,'شناسه فایل یا فاکتور معتبر نیست.');
+    const currentFile=await pool.query('SELECT * FROM invoice_media WHERE id=$1 AND order_id=$2',[mid,id]);
+    if(!currentFile.rowCount)return fail(reply,404,'فایل پیدا نشد.');
+    const existing=currentFile.rows[0];
+    let original;
+    try{original=sanitizeName(decodeURIComponent(String(request.headers['x-file-name']||'')));}
+    catch{return fail(reply,400,'نام فایل معتبر نیست.');}
+    const ext=extension(original),expectedExt=extension(existing.download_name||existing.original_name);
+    if(!TYPE_MAP[ext]||ext!==expectedExt)return fail(reply,415,'فایل جایگزین باید همان پسوند فایل قبلی را داشته باشد: '+expectedExt);
+    const contentLength=Number(request.headers['content-length']||0);
+    if(Number.isFinite(contentLength)&&contentLength>MAX_BYTES)return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
+    await fsp.mkdir(MEDIA_ROOT,{recursive:true});
+    const disk=await fsp.statfs(MEDIA_ROOT);
+    if(Number(disk.bavail)*Number(disk.bsize)<RESERVE_BYTES+Math.max(contentLength,MAX_BYTES))
+      return fail(reply,507,'فضای آزاد دیسک کافی نیست.');
+    const token=randomUUID(),temp=path.join(MEDIA_ROOT,'.'+token+'.upload'),nextName=token+'.'+ext;
+    let bytes=0,header=Buffer.alloc(0),newFilePlaced=false;
+    const hash=createHash('sha256');
+    const monitor=new Transform({transform(chunk,encoding,callback){
+      bytes+=chunk.length;
+      if(bytes>MAX_BYTES){callback(new Error('FILE_TOO_LARGE'));return;}
+      if(header.length<32)header=Buffer.concat([header,chunk.subarray(0,32-header.length)]);
+      hash.update(chunk);callback(null,chunk);
+    }});
+    try{
+      await pipeline(request.body,monitor,fs.createWriteStream(temp,{flags:'wx',mode:0o600}));
+      if(!bytes)return fail(reply,400,'فایل خالی است.');
+      if(!looksLike(ext,header))return fail(reply,415,'محتوای فایل جایگزین با پسوند آن مطابقت ندارد.');
+      const sourceHash=hash.digest('hex');
+      const client=await pool.connect();
+      let oldMedia,invoiceNumber;
+      try{
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)',[472901]);
+        const locked=await client.query('SELECT * FROM invoice_media WHERE id=$1 AND order_id=$2 FOR UPDATE',[mid,id]);
+        if(!locked.rowCount)throw new Error('MEDIA_MISSING');
+        oldMedia=locked.rows[0];
+        if(extension(oldMedia.download_name||oldMedia.original_name)!==ext)throw new Error('MEDIA_CHANGED');
+        const order=await client.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
+        if(!order.rowCount)throw new Error('INVOICE_MISSING');
+        invoiceNumber=order.rows[0].invoice_number;
+        const total=await client.query('SELECT COALESCE(SUM(stored_bytes+thumbnail_bytes),0)::bigint AS total FROM invoice_media');
+        const usage=Number(total.rows[0].total)-Number(oldMedia.stored_bytes)-Number(oldMedia.thumbnail_bytes||0)+bytes;
+        if(usage>MEDIA_QUOTA)throw new Error('QUOTA_EXCEEDED');
+        await fsp.rename(temp,storedPath(nextName));
+        newFilePlaced=true;
+        await client.query(
+          "UPDATE invoice_media SET stored_name=$1,original_name=$2,mime_type=$3,original_bytes=$4,stored_bytes=$4,source_hash=$5,compression_mode='original',thumbnail_name=NULL,thumbnail_bytes=0,uploaded_by=$6,uploader_name=$7 WHERE id=$8 AND order_id=$9",
+          [nextName,original,TYPE_MAP[ext],bytes,sourceHash,request.user.id,request.user.full_name||request.user.username,mid,id]);
+        await client.query('COMMIT');
+      }catch(e){
+        await client.query('ROLLBACK').catch(()=>{});
+        if(newFilePlaced)await fsp.unlink(storedPath(nextName)).catch(()=>{});
+        newFilePlaced=false;
+        if(e.message==='MEDIA_MISSING')return fail(reply,404,'فایل قبلی دیگر موجود نیست.');
+        if(e.message==='MEDIA_CHANGED')return fail(reply,409,'فایل هم‌زمان تغییر کرده است؛ فهرست را به‌روز کنید.');
+        if(e.message==='QUOTA_EXCEEDED')return fail(reply,413,'سهمیه ذخیره‌سازی فایل‌ها تکمیل شده است.');
+        throw e;
+      }finally{client.release();}
+      await cleanMedia([oldMedia]);
+      try{
+        await writeActivityLog({request,action_type:'order.media_replaced',entity_type:'order',entity_id:String(id),
+          invoice_number:invoiceNumber,message:'فایل فنی با حفظ نام و شماره جایگزین شد.',
+          details:{filename:oldMedia.download_name||oldMedia.original_name,original_name:original,stored_bytes:bytes}});
+      }catch(e){request.log.error(e);}
+      broadcastRealtimeEvent('orders.changed',{order_id:id});
+      return {success:true,media_id:mid,download_name:oldMedia.download_name||oldMedia.original_name,stored_bytes:bytes};
+    }catch(error){
+      request.log.error(error);
+      if(error.message==='FILE_TOO_LARGE')return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
+      return fail(reply,500,'جایگزینی فایل ناموفق بود؛ فایل قبلی حفظ شده است.');
     }finally{await fsp.unlink(temp).catch(()=>{});}
   });
 
