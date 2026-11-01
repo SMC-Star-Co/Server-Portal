@@ -22,3 +22,19 @@ dialog.invoice-media-preview::backdrop { background: rgba(2,6,23,.76); }
 #invoiceMediaPreviewBody { max-height: 80vh; overflow: auto; text-align: center; }
 #invoiceMediaPreviewBody img { display: block; margin: auto; max-width: none; max-height: none; width: auto; height: auto; }
 #invoiceMediaPreviewBody video { max-width: 100%; max-height: 70vh; }
+/* Dedicated media modal: no changes to Portal's shared styles. */
+.invoice-media-modal-card { width: min(100%, 970px); }
+.invoice-media-modal-body { display: flex; flex-direction: column; gap: 12px; max-height: 76vh; overflow-y: auto; }
+.invoice-media-uploader[hidden], #invoiceMediaInvoiceDownloadAll[hidden] { display: none !important; }
+.invoice-media-uploader .inline-form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.invoice-media-uploader input[type="file"] { flex: 1 1 250px; min-width: 0; font-size: 12px; }
+.invoice-media-uploader select { width: 100%; border: 1px solid #d6e0ed; border-radius: 8px; background: white; padding: 8px; }
+.invoice-media-serial-groups { display: flex; flex-direction: column; gap: 10px; }
+.invoice-media-serial-group { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: white; }
+.invoice-media-serial-group > summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 12px; gap: 12px; background: #f1f5f9; color: #1e293b; }
+.invoice-media-serial-group > summary strong { font-family: monospace; direction: ltr; text-align: left; }
+.invoice-media-serial-group > summary span { font-size: 12px; color: #64748b; }
+.invoice-media-serial-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.invoice-media-group-download { margin: 0 10px 10px; font-size: 12px; }
+#invoiceMediaInvoiceDownloadAll { margin-top: 8px; font-size: 12px; }
+#invoiceMediaPreviewBody iframe { display: block; width: 100%; min-height: 65vh; border: none; }
