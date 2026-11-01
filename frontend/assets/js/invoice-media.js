@@ -98,7 +98,8 @@ function drawMediaRows(container, files) {
     details.append(title, subtitle);
     const actions = document.createElement('div');
     actions.className = 'invoice-media-actions';
-    if (file.mime_type?.startsWith('image/') || file.mime_type?.startsWith('video/') || file.mime_type === 'application/pdf') {
+    const browserPreview = ['image/jpeg','image/png','image/webp','image/gif','image/bmp','video/mp4','video/webm','video/quicktime','application/pdf'];
+    if (browserPreview.includes(file.mime_type)) {
       actions.append(createMediaButton('نمایش', 'soft-primary-btn', () => previewInvoiceMedia(file)));
     }
     actions.append(createMediaButton('دانلود', 'secondary-btn', () => downloadInvoiceMedia(file)));
