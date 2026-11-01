@@ -7,7 +7,7 @@
 1. در VS Code ترمینال سرور تست را باز کنید: `hostname` باید `smc-server` باشد.
 2. وضعیت Git را بررسی کنید: `cd /root/portal && git status -sb`.
 3. آخرین تغییرات را بگیرید: `git pull --ff-only origin develop`.
-4. پوشه مستقل فایل‌ها را بسازید: `mkdir -p /srv/portal-media`.
+4. پوشه مستقل فایل‌ها را بسازید: `mkdir -p /root/portal-media`.
 5. فقط کانتینر Node.js تست را بازسازی کنید: `docker compose up -d --build app`.
 6. سلامت سرویس: `docker compose ps` و `docker logs --tail 80 node_app`.
 7. تست منطق و نوع فایل‌ها: `docker exec node_app node --test test/invoice-media.test.js`.
@@ -32,13 +32,13 @@
 
 ## ذخیره‌سازی و بکاپ
 
-- اصل فایل‌ها در `/srv/portal-media` روی Ubuntu تست هستند و در Docker از `/app/media` قابل دسترسی‌اند.
+- اصل فایل‌ها در `/root/portal-media` روی Ubuntu تست هستند و در Docker از `/app/media` قابل دسترسی‌اند.
 - اطلاعات مربوط به فایل‌ها در جدول PostgreSQL به نام `invoice_media` نگهداری می‌شود.
-- `pg_dump` محتوای فایل‌های تصویر را شامل نمی‌شود؛ برای پشتیبان‌گیری کامل، هم دیتابیس و هم `/srv/portal-media` را نگهداری کنید.
+- `pg_dump` محتوای فایل‌های تصویر را شامل نمی‌شود؛ برای پشتیبان‌گیری کامل، هم دیتابیس و هم `/root/portal-media` را نگهداری کنید.
 - هیچ فایلی در GitHub ذخیره نمی‌شود؛ فایل `.env` تغییری نکرده است.
 
 ## اگر مشکلی دیدید
 
 - برای خطای Build یا HEIC خروجی `docker compose logs --tail 100 app` را بررسی کنید.
-- برای وضعیت مسیر: `ls -ld /srv/portal-media`.
+- برای وضعیت مسیر: `ls -ld /root/portal-media`.
 - از روی سرور تست به‌صورت آزمایشی می‌توانید فایل‌های واقعی را بررسی کنید؛ ابتدا روی سرور اصلی هیچ تغییری ندهید.
