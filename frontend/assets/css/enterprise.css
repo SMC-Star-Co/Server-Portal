@@ -600,3 +600,40 @@ html[data-theme="dark"] .invoice-media-pending-remove {background:var(--ep-dange
  .ep-toolbar-controls {gap:4px;}
  .ep-theme-toggle,.ep-density-toggle {min-width:35px;}
 }
+
+
+/* Header ergonomics: override legacy fixed widths and pill minimums */
+.top-search-wrap {width:100%;flex:1 1 260px;}
+.top-search {width:100%;max-width:100%;min-width:0;}
+.account-actions {margin-right:0;gap:6px;}
+.header-action-box,.header-user-box,.header-logout-btn {min-width:0;min-height:39px;height:auto;}
+.header-refresh-box {min-width:135px;min-height:39px;height:39px;padding:0 8px;}
+.header-refresh-btn {background:transparent;color:var(--ep-accent);border:none;}
+.header-role-box,.header-user-box {max-width:155px;overflow:hidden;text-overflow:ellipsis;}
+.ep-sidebar-toggle {
+  min-width:39px;height:39px;padding:0;border:1px solid var(--ep-line);
+  background:var(--ep-surface);color:var(--ep-ink);
+  border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
+}
+.ep-sidebar-toggle:hover {background:var(--ep-hover);border-color:var(--ep-accent-line);}
+.ep-sidebar-toggle svg {width:16px;height:16px;stroke-width:1.85;}
+html.ep-sidebar-collapsed .ep-sidebar-toggle {
+  background:var(--ep-accent-soft);border-color:var(--ep-accent-line);color:var(--ep-accent);
+}
+@media(max-width:1250px) {
+ .header-refresh-box {min-width:39px;width:39px;justify-content:center;padding:0;}
+ .header-refresh-box #lastRefreshTime {display:none;}
+ .account-actions .header-action-box {max-width:126px;}
+}
+@media(max-width:900px) {
+ .brand-card {min-width:0;width:auto;}
+ .top-search-wrap {flex:1 1 180px;width:100%;max-width:300px;}
+ .header-logout-btn {min-width:0;}
+ .header-user-box {display:none;}
+}
+@media(max-width:700px){
+ .ep-sidebar-toggle {display:none;}
+ .top-search-wrap {min-width:0;max-width:none;flex:1 1 120px;}
+ .header-action-box,.header-logout-btn {min-width:0;padding:6px;}
+ .header-role-box,.header-user-box {display:none;}
+}
