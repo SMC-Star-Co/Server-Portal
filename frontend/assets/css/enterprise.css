@@ -645,3 +645,26 @@ html.ep-sidebar-collapsed .ep-sidebar-toggle {
   html.ep-sidebar-collapsed .side-menu .page-nav-btn>span:first-child {display:inline;}
   html.ep-sidebar-collapsed .side-menu .ep-sidebar-caption {display:block;}
 }
+
+/* Quiet motion and responsive tactile feedback—not decorative animation. */
+@media(min-width:701px) {
+  .dashboard-layout {transition:grid-template-columns .24s cubic-bezier(.2,.75,.2,1);}
+}
+.table-area > section:not(.hidden) {
+  animation:ep-content-in .24s cubic-bezier(.2,.8,.3,1) both;
+}
+@keyframes ep-content-in {
+  from {opacity:.86;transform:translateY(5px);}
+  to {opacity:1;transform:none;}
+}
+.ep-page-context h2,.ep-page-context p {transition:color .16s;}
+html[data-theme="dark"] .top-header {box-shadow:0 1px 0 rgba(255,255,255,.035);}
+html[data-theme="dark"] .side-menu {border-color:#1d3250;}
+/* Dark window scrollbars; browser-native controls use color-scheme above. */
+html[data-theme="dark"] {
+  scrollbar-color:#425571 #0e192a;
+}
+@media(prefers-reduced-motion:reduce) {
+  .table-area > section:not(.hidden) {animation:none!important;}
+  .dashboard-layout {transition:none!important;}
+}
