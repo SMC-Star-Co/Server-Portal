@@ -80,7 +80,7 @@ function looksLike(ext, bytes) {
 function downloadName(invoice,scope,serial,seq,ext) {
   const base = String(invoice || '').trim().replace(/[^0-9A-Za-z_-]/g, '_').slice(0, 80);
   const number = String(seq).padStart(2, '0');
-  return (base || 'invoice') + (scope === 'serial' ? '-' + serial : '') + '-' + number + '.' + ext;
+  return (scope === 'serial' ? serial : (base || 'invoice')) + '-' + number + '.' + ext;
 }
 async function cleanMedia(rows) {
   for (const item of rows || []) for (const name of [item.stored_name,item.thumbnail_name]) {
