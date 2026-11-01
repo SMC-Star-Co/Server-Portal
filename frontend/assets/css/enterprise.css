@@ -637,3 +637,11 @@ html.ep-sidebar-collapsed .ep-sidebar-toggle {
  .header-action-box,.header-logout-btn {min-width:0;padding:6px;}
  .header-role-box,.header-user-box {display:none;}
 }
+
+/* Sidebar collapse is a desktop preference: mobile navigation always shows labels. */
+@media(max-width:700px){
+  html.ep-sidebar-collapsed .side-menu {width:min(280px,calc(100vw - 20px));padding:15px 11px 18px;}
+  html.ep-sidebar-collapsed .side-menu .page-nav-btn {justify-content:space-between;padding:9px 12px;}
+  html.ep-sidebar-collapsed .side-menu .page-nav-btn>span:first-child {display:inline;}
+  html.ep-sidebar-collapsed .side-menu .ep-sidebar-caption {display:block;}
+}
