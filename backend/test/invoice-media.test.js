@@ -44,3 +44,11 @@ test('stored file paths cannot escape media directory', () => {
   assert.throws(()=>storedPath('../../etc/passwd'));
   assert.match(storedPath('a1234567-aaaa-4bbb-8ccc-123456789abc.pdf'),/\.pdf$/);
 });
+
+test('image and video thumbnail names remain inside media directory', () => {
+  const webp = storedPath('a1234567-aaaa-4bbb-8ccc-123456789abc-thumb.webp');
+  const jpg = storedPath('a1234567-aaaa-4bbb-8ccc-123456789abc-thumb.jpg');
+  assert.match(webp, /-thumb\\.webp$/);
+  assert.match(jpg, /-thumb\\.jpg$/);
+  assert.throws(() => storedPath('../image-thumb.webp'));
+});
