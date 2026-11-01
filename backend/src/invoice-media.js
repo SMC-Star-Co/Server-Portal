@@ -102,7 +102,7 @@ async function initMediaTable(client) {
   await client.query("ALTER TABLE invoice_media ADD COLUMN IF NOT EXISTS sequence_number INTEGER NOT NULL DEFAULT 0");
   await client.query("ALTER TABLE invoice_media ADD COLUMN IF NOT EXISTS download_name TEXT");
   await client.query("CREATE INDEX IF NOT EXISTS invoice_media_order_idx ON invoice_media(order_id,id)");
-  await client.query("CREATE UNIQUE INDEX IF NOT EXISTS invoice_media_scope_sequence_idx ON invoice_media(order_id,media_scope,COALESCE(serial_number,''),sequence_number) WHERE sequence_number > 0");
+  await client.query("CREATE UNIQUE INDEX IF NOT EXISTS invoice_media_scope_sequence_idx ON invoice_media(order_id,media_scope,(COALESCE(serial_number,'')),sequence_number) WHERE sequence_number > 0");
 }
 function attachmentsForOrder(client, id) {
   return client.query("SELECT id,original_name,COALESCE(download_name,original_name) AS download_name," +
