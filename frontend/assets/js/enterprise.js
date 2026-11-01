@@ -114,7 +114,15 @@
   }
   function ensurePageContext(){
     const main=document.querySelector('#appShell main.table-area');
-    if(!main || main.querySelector('.ep-page-context'))return;
+    if(!main)return;
+    if(main.querySelector('.ep-page-context')) {
+      const stamp=document.getElementById('epTodayDate');
+      if(stamp) {
+        try{stamp.textContent=new Intl.DateTimeFormat('fa-IR-u-ca-persian',{year:'numeric',month:'long',day:'numeric'}).format(new Date());}
+        catch{stamp.textContent=new Date().toLocaleDateString('fa-IR');}
+      }
+      return;
+    }
     const context=document.createElement('div');
     context.className='ep-page-context';
     context.innerHTML='<div class="ep-page-identity"><span class="enterprise-kicker">SERVER MANAGEMENT PLATFORM</span><h2 id="epPageTitle">میز کار</h2><p id="epPageDescription">نمای کلی فاکتورها و پیگیری سفارش‌ها</p></div>';
@@ -146,6 +154,8 @@
     if(title)title.textContent=match[0];
     if(desc)desc.textContent=match[1];
     document.querySelectorAll('.side-menu .page-nav-btn').forEach(btn=>{
+      const label=btn.querySelector('.nav-label');
+      if(label)btn.title=label.textContent.trim();
       if(btn.classList.contains('active-page'))btn.setAttribute('aria-current','page');
       else btn.removeAttribute('aria-current');
     });
