@@ -171,7 +171,7 @@
   function initialize(){
     ensureToolbar();ensurePageContext();updateActiveContext();
     const sidebar=document.querySelector('.side-menu');
-    if(side){
+    if(sidebar){
       const observer=new MutationObserver(updateActiveContext);
       observer.observe(sidebar,{attributes:true,subtree:true,attributeFilter:['class']});
       sidebar.addEventListener('click',event=>{
