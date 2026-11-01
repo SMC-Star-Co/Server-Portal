@@ -535,3 +535,68 @@ html.ep-sidebar-collapsed .side-menu .menu-arrow-icon {color:#d1e4ff;}
 @media(prefers-reduced-motion:reduce) {
   *,*::before,*::after {transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important;}
 }
+
+/* Fine-grained controls, dense enterprise tables and remaining legacy inline cards */
+.ep-toolbar-controls {display:flex;align-items:center;gap:6px;}
+.ep-toolbar-controls .ep-theme-label,.ep-toolbar-controls .ep-density-label {font-weight:770;}
+.ep-login-theme {margin-inline-start:auto;flex:0 0 40px;width:40px;padding:0;}
+.ep-login-theme .ep-theme-label {display:none;}
+.ep-sidebar-caption {white-space:nowrap;overflow:hidden;}
+.menu-arrow-icon {background:transparent !important;border:0 !important;box-shadow:none !important;}
+.group-arrow,.manage-btn,.action-card-btn,.serial-btn,.soft-neutral-btn {
+  background:var(--ep-subtle);color:var(--ep-ink);
+  border:1px solid var(--ep-line);border-radius:8px;box-shadow:none;
+}
+.manage-btn:hover,.action-card-btn:hover,.serial-btn:hover,.soft-neutral-btn:hover {
+  background:var(--ep-hover);color:var(--ep-accent);transform:none;
+}
+:where(.badge-pending,.badge-waiting,.badge-progress,.badge-danger,.badge-completed,
+.note-tag,.inline-action-blue,.inline-action-red,.inline-action-gray) {
+  border-radius:7px;box-shadow:none;
+}
+html[data-theme="dark"] :is(.group-arrow,.manage-btn,.action-card-btn,.serial-btn,.soft-neutral-btn,
+.inline-edit-input,.locked-panel,.inline-form-row input,.serial-row,
+.tech-note-row,.ops-related-row,.technician-row,.seller-description-box,
+.info-detail-item,.info-detail-item.polished-info-item,
+.user-role-group-header,.lookup-group-header,.date-group-card .group-header,
+.account-profile-summary,.report-breadcrumb,.lookup-card,.users-table-wrap,
+.empty-state,.auth-page,.form-note-box,.info-value-pill) {
+  background:var(--ep-subtle) !important;color:var(--ep-ink);
+  border-color:var(--ep-line) !important;box-shadow:none;
+}
+html[data-theme="dark"] :is(.inline-action-blue,.info-related-chip,.rel-chip,.date-count,
+.filter-count,.page-head-actions button) {background:var(--ep-accent-soft) !important;color:var(--ep-accent);border-color:var(--ep-accent-line);}
+html[data-theme="dark"] :is(.inline-action-red,.badge-danger) {background:var(--ep-danger-soft) !important;color:var(--ep-danger);}
+html[data-theme="dark"] .badge-completed {background:var(--ep-success-soft);color:var(--ep-success);}
+html[data-theme="dark"] .badge-waiting {background:var(--ep-warning-soft);color:var(--ep-warning);}
+html[data-theme="dark"] .badge-progress {background:var(--ep-warning-soft);color:var(--ep-warning);}
+html[data-theme="dark"] .locked-field {background:var(--ep-hover) !important;color:var(--ep-faint);}
+html[data-theme="dark"] :is(.user-role-group-card,.archive-group-card,.activity-group-card,
+.users-table-wrap,.log-detail-row,.login-card) :is(td,th,button,span,strong) {
+  border-color:var(--ep-line-soft);
+}
+html[data-theme="dark"] :is(.lookup-group-title,.advanced-search-title strong,.logs-panel-title strong,
+.account-settings-title strong,.report-summary-label,.role-card-title,.info-section-title,
+.modal-section-card .section-title-text) {color:var(--ep-strong) !important;}
+html[data-theme="dark"] :is(.invoice-media-pending-row,.invoice-media-pending-info strong,
+.invoice-media-serial-file-label strong,.invoice-media-serial-name,
+.invoice-media-serial-chip strong,.invoice-media-file-meta strong) {color:var(--ep-ink);}
+html[data-theme="dark"] .invoice-media-pending-row {background:var(--ep-elevated) !important;}
+html[data-theme="dark"] .invoice-media-file-actions button {background:var(--ep-subtle);border-color:var(--ep-line);color:var(--ep-ink);}
+html[data-theme="dark"] .invoice-media-file-actions .invoice-media-action-view,
+html[data-theme="dark"] .invoice-media-file-actions .invoice-media-action-edit {background:var(--ep-accent-soft);color:var(--ep-accent);}
+html[data-theme="dark"] .invoice-media-file-actions .invoice-media-action-delete {background:var(--ep-danger-soft);color:var(--ep-danger);}
+html[data-theme="dark"] .invoice-media-preview-body {color:#e3ecf9;}
+html[data-theme="dark"] .invoice-media-preview-actions button {background:var(--ep-elevated);}
+html[data-theme="dark"] .invoice-media-serial-total {background:var(--ep-subtle);color:var(--ep-secondary);}
+html[data-theme="dark"] .invoice-media-replace-name {background:var(--ep-accent-soft);color:var(--ep-accent);}
+html[data-theme="dark"] .invoice-media-pending-type {background:var(--ep-accent-soft);color:var(--ep-accent);}
+html[data-theme="dark"] .invoice-media-pending-remove {background:var(--ep-danger-soft);color:var(--ep-danger);border-color:var(--ep-line);}
+@media(max-width:1250px){
+ .ep-theme-toggle .ep-theme-label,.ep-density-toggle .ep-density-label {display:none;}
+ .ep-theme-toggle,.ep-density-toggle {padding:0;min-width:39px;}
+}
+@media(max-width:700px){
+ .ep-toolbar-controls {gap:4px;}
+ .ep-theme-toggle,.ep-density-toggle {min-width:35px;}
+}
