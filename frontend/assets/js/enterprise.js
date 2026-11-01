@@ -22,6 +22,7 @@
     compact:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10m-10 3h10m-10 3h10"/>',
     expand:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10m-10 5h10"/>',
     menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+    sidebar:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
     date:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>'
   };
   const svg=name=>'<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9">'+icons[name]+'</svg>';
@@ -56,6 +57,16 @@
       button.setAttribute('aria-pressed',String(compact));
     }
   }
+  function setSidebar(next,save=true){
+    const collapsed=next==='collapsed';
+    root.classList.toggle('ep-sidebar-collapsed',collapsed);
+    if(save)store('sidebar',collapsed?'collapsed':'expanded');
+    for(const button of document.querySelectorAll('[data-enterprise-sidebar]')){
+      button.setAttribute('aria-label',collapsed?'بازکردن منوی کناری':'جمع‌کردن منوی کناری');
+      button.setAttribute('aria-pressed',String(collapsed));
+      button.title=collapsed?'بازکردن منوی کناری':'جمع‌کردن منوی کناری';
+    }
+  }
   function makeButton(attribute,cls,label,onClick) {
     const btn=document.createElement('button');
     btn.type='button';btn.className=cls;btn.setAttribute(attribute,'');
@@ -77,7 +88,11 @@
         menuBtn.setAttribute('aria-expanded',String(open));
       });
       menuBtn.innerHTML=svg('menu');
-      controls.append(menuBtn,themeBtn,densityBtn);
+      const sidebarBtn=makeButton('data-enterprise-sidebar','ep-sidebar-toggle','جمع‌کردن منوی کناری',()=>{
+        setSidebar(root.classList.contains('ep-sidebar-collapsed')?'expanded':'collapsed');
+      });
+      sidebarBtn.innerHTML=svg('sidebar');
+      controls.append(menuBtn,sidebarBtn,themeBtn,densityBtn);
       const search=actions.querySelector('.top-search-wrap');
       if(search)actions.insertBefore(controls,search);
       else actions.prepend(controls);
@@ -88,6 +103,7 @@
       authHead.append(btn);
     }
     setTheme(theme,false);setDensity(read('density')==='compact'?'compact':'comfortable',false);
+    setSidebar(read('sidebar')==='collapsed'?'collapsed':'expanded',false);
     const side=document.querySelector('#appShell .side-menu');
     if(side&&!side.querySelector('.ep-sidebar-caption')){
       const caption=document.createElement('div');
