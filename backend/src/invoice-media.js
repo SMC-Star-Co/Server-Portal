@@ -81,6 +81,11 @@ async function optimize(input,base,format,mode) {
     compression_mode:keepOriginal?'original':lossless?'lossless':'high-quality'};
 }
 function safeName(name){return String(name||'file').replace(/[\x00-\x1f\x7f\/\\]/g,'_').slice(0,180)||'file'}
+function downloadName(original,mime){
+  const name=safeName(original);
+  if(mime!=='image/webp')return name;
+  return (/\.[^.]+$/.test(name)?name.replace(/\.[^.]+$/,''):name)+'.webp';
+}
 function numeric(value){const n=Number(value);return Number.isSafeInteger(n)&&n>0?n:null}
 function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent}){
   fastify.addContentTypeParser('application/octet-stream',
@@ -92,7 +97,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     const exists=await pool.query('SELECT 1 FROM orders WHERE id=$1',[id]);
     if(!exists.rowCount)return reply.code(404).send({error:'فاکتور پیدا نشد.'});
     const rows=await pool.query('SELECT id,original_name,mime_type,original_bytes,stored_bytes,compression_mode,uploader_name,created_at,thumbnail_name IS NOT NULL AS has_thumbnail FROM invoice_media WHERE order_id=$1 ORDER BY id DESC',[id]);
-    return {files:rows.rows,can_manage:isTech(request.user)};
+    return {files:rows.rows.map(row=>({...row, download_name:downloadName(row.original_name,row.mime_type)})),can_manage:isTech(request.user)};
   });
   fastify.post('/api/orders/:id/media',{bodyLimit:MAX_FILE},async(request,reply)=>{
     if(!requirePermission(request,reply,'orders.view'))return;
@@ -151,7 +156,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     const name=thumbnail?row.thumbnail_name:row.stored_name;
     try{
       await fs.access(diskPath(name));
-      const disposition=request.query?.download==='1'?"attachment; filename=\"file\"; filename*=UTF-8''"+encodeURIComponent(safeName(row.original_name)):'inline';
+      const disposition=request.query?.download==='1'?"attachment; filename=\"file\"; filename*=UTF-8''"+encodeURIComponent(downloadName(row.original_name,row.mime_type)):'inline';
       return reply.header('Content-Type',thumbnail?'image/webp':row.mime_type)
         .header('Content-Disposition',disposition).header('Cache-Control','no-store')
         .send(fss.createReadStream(diskPath(name)));
@@ -173,4 +178,4 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     return {success:true};
   });
 }
-module.exports={registerInvoiceMedia,initMediaTable,cleanMedia, __test:{sniff,isTech,diskPath}};
+module.exports={registerInvoiceMedia,initMediaTable,cleanMedia, __test:{sniff,isTech,diskPath,downloadName}};
