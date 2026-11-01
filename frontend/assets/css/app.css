@@ -431,3 +431,76 @@ select option{background:var(--paper);color:var(--ink)}
 .archive-group-header,.log-group-header{font-size:11px}
 .archive-title-with-count{min-width:0}
 .archive-count-chip{font-size:9px}
+
+/* LOGGING AND AUDIT */
+.logs-table-wrap{border:1px solid var(--line);border-radius:9px;overflow:auto}
+.logs-table{min-width:1000px}
+.logs-message-cell{text-align:right!important;max-width:400px;overflow:hidden;text-overflow:ellipsis}
+.log-detail-row td{background:var(--paper-2)!important}
+.log-detail-box,.log-detail-panel{padding:11px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font-size:11px;line-height:1.9;white-space:pre-wrap;text-align:right}
+.log-detail-title{color:var(--ink-strong);font-size:11px;font-weight:820;margin-bottom:8px}
+.log-change-table{width:100%;border-collapse:collapse}
+.log-change-table th,.log-change-table td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:right;font-size:10px}
+.log-change-table th{background:var(--paper-3);color:var(--muted)}
+.log-detail-chip-grid{display:flex;flex-wrap:wrap;gap:7px}
+.log-detail-chip{display:flex;gap:6px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2)}
+.log-detail-chip b{color:var(--ink-strong);font-size:10px}
+.log-detail-chip span{color:var(--muted);font-size:10px}
+.log-detail-lines{white-space:pre-wrap;line-height:1.95;color:var(--ink)}
+/* ANALYTICS */
+.reports-control-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.report-date-range-field{min-width:0}
+.report-actions-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.reports-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0}
+.report-summary-card{display:flex;flex-direction:column;justify-content:space-between;min-height:100px;padding:15px;border-top:3px solid var(--cyan)}
+.report-summary-card:nth-child(2){border-top-color:var(--accent)}
+.report-summary-card:nth-child(3){border-top-color:var(--success)}
+.report-summary-card:nth-child(4){border-top-color:var(--gold)}
+.report-summary-label{font-size:10px;font-weight:750;color:var(--muted)}
+.report-summary-value{font-size:26px;line-height:1.4;font-weight:850;color:var(--ink-strong);margin-top:8px}
+.report-chart-card{padding:21px}
+.report-chart-head{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.report-chart-title{font-size:14px;font-weight:850;color:var(--ink-strong)}
+.report-chart-subtitle{font-size:10px;line-height:1.85;color:var(--muted);margin-top:4px}
+.report-breadcrumb{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:14px}
+.report-breadcrumb button,.report-breadcrumb span{padding:5px 9px;border:1px solid var(--line);background:var(--paper-2);color:var(--muted);border-radius:6px;font-size:10px}
+.report-breadcrumb button:hover{background:var(--accent-soft);color:var(--accent)}
+.report-chart-layout{display:grid;grid-template-columns:minmax(285px,400px) minmax(0,1fr);gap:34px;align-items:center}
+.report-pie-wrap{max-width:400px;width:100%;margin:auto;aspect-ratio:1;display:grid;place-items:center}
+.report-pie-svg{width:100%;height:auto;overflow:visible;filter:drop-shadow(0 8px 17px rgba(17,32,53,.10))}
+.report-pie-slice{cursor:pointer;transition:opacity .16s,transform .16s;transform-origin:180px 180px}
+.report-pie-slice:hover{opacity:.9}
+.report-pie-percent{font-size:22px;font-weight:850;fill:#fff;pointer-events:none;text-anchor:middle;dominant-baseline:central}
+.report-legend-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.report-legend-item{display:flex;align-items:center;gap:9px;min-width:0;text-align:right;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2);font-size:11px}
+.report-legend-item:hover{border-color:var(--accent);background:var(--accent-soft)}
+.report-legend-dot{display:block;flex:0 0 11px;width:11px;height:11px;border-radius:3px}
+.report-legend-label{font-size:11px;color:var(--ink-strong);font-weight:720;min-width:0}
+.report-legend-value{margin-right:auto;font-size:10px;color:var(--muted);white-space:nowrap}
+.report-empty-state,.reports-empty-page{min-height:250px;display:grid;place-items:center;text-align:center;color:var(--muted)}
+.report-month-preset-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+/* ACCOUNT AND PROFILE */
+.account-settings-card{max-width:none}
+.account-profile-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.account-profile-item{min-width:0;padding:13px;border:1px solid var(--line);border-radius:8px;background:var(--paper-2)}
+.account-profile-label{font-size:10px;color:var(--muted)}
+.account-profile-value{font-size:13px;font-weight:830;color:var(--ink-strong);margin-top:5px;overflow-wrap:anywhere}
+.account-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
+.account-form-grid button{min-height:40px}
+/* PERSIAN DATE PICKER */
+.jalali-date-wrap{position:relative}
+.jalali-date-input{cursor:pointer}
+.jalali-date-input[readonly]{background:var(--paper-2)}
+.jalali-picker-panel{position:fixed;z-index:350;width:min(324px,calc(100vw - 20px));background:var(--paper);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow-lift);padding:10px;color:var(--ink)}
+.jalali-picker-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 7px 13px}
+.jalali-picker-title{font-size:12px;font-weight:850;color:var(--ink-strong)}
+.jalali-picker-nav{display:grid;place-items:center;width:29px;height:29px;padding:0;border:1px solid var(--line);background:var(--paper-2);border-radius:6px;color:var(--ink)}
+.jalali-picker-nav:hover{background:var(--accent-soft);color:var(--accent)}
+.jalali-weekdays,.jalali-days-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;text-align:center}
+.jalali-weekdays span{font-size:10px;font-weight:750;color:var(--muted);padding:5px 0}
+.jalali-days-grid{padding-bottom:9px}
+.jalali-day-btn{display:grid;place-items:center;width:100%;min-height:33px;padding:0;border:1px solid transparent;border-radius:6px;background:var(--paper-2);font-size:11px;color:var(--ink)}
+.jalali-day-btn:hover,.jalali-day-btn.is-selected{background:var(--accent);color:var(--accent-on)}
+.jalali-day-empty{height:33px}
+.jalali-picker-footer{display:flex;gap:7px}
+.jalali-picker-footer button{flex:1;min-height:31px}
