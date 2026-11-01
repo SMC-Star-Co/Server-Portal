@@ -332,7 +332,8 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         const locked=await client.query('SELECT * FROM invoice_media WHERE id=$1 AND order_id=$2 FOR UPDATE',[mid,id]);
         if(!locked.rowCount)throw new Error('MEDIA_MISSING');
         oldMedia=locked.rows[0];
-        if(extension(oldMedia.download_name||oldMedia.original_name)!==ext)throw new Error('MEDIA_CHANGED');
+        if(oldMedia.stored_name!==existing.stored_name || extension(oldMedia.download_name||oldMedia.original_name)!==ext)
+          throw new Error('MEDIA_CHANGED');
         const order=await client.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
         if(!order.rowCount)throw new Error('INVOICE_MISSING');
         invoiceNumber=order.rows[0].invoice_number;
