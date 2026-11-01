@@ -1,265 +1,435 @@
-// Dedicated technical media management. Does not alter invoice or serial-save logic.
-const invoiceMedia = { orderId: null, technician: false, serials: [], files: [], generation: 0, uploading: false };
+// Technical media UI: isolated from invoice details, serial editing and existing permissions.
+const invoiceMedia = {
+  orderId: null, invoice: '', technician: false, serials: [], files: [],
+  generation: 0, uploading: false, uploadScope: 'invoice', view: 'invoice',
+  urls: new Set(), thumbnailObserver: null, expandedSerials: new Set()
+};
 
 function mediaSize(value) {
   const n = Number(value) || 0;
   return n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
 }
+function mediaElement(id) { return document.getElementById(id); }
+function mediaIcon(ext) {
+  const code = String(ext || '').toLowerCase();
+  if (code === 'pdf') return {kind:'pdf',label:'PDF'};
+  if (['doc','docx','odt','rtf'].includes(code)) return {kind:'word',label:'DOC'};
+  if (['xls','xlsx','ods','csv'].includes(code)) return {kind:'excel',label:'XLS'};
+  if (['ppt','pptx'].includes(code)) return {kind:'slide',label:'PPT'};
+  return {kind:'other',label:(code || 'FILE').slice(0,5).toUpperCase()};
+}
+function releaseMediaThumbnails() {
+  if (invoiceMedia.thumbnailObserver) {
+    invoiceMedia.thumbnailObserver.disconnect();
+    invoiceMedia.thumbnailObserver = null;
+  }
+  for (const url of invoiceMedia.urls) URL.revokeObjectURL(url);
+  invoiceMedia.urls.clear();
+}
 function clearInvoiceMedia() {
-  invoiceMedia.generation++;
+  closeInvoiceMediaModal();
   invoiceMedia.orderId = null;
+  invoiceMedia.invoice = '';
   invoiceMedia.serials = [];
   invoiceMedia.files = [];
-  closeInvoiceMediaModal();
 }
 function openInvoiceMediaFromOps() {
-  const id = document.getElementById('edit_order_id')?.value;
+  const id = mediaElement('edit_order_id')?.value;
   if (!id) return;
   invoiceMedia.orderId = String(id);
-  const modal = document.getElementById('invoiceMediaModal');
-  modal.style.display = 'flex';
+  invoiceMedia.expandedSerials.clear();
+  invoiceMedia.uploadScope = 'invoice';
+  invoiceMedia.view = 'invoice';
+  mediaElement('invoiceMediaModal').style.display = 'flex';
+  setInvoiceMediaUploadScope('invoice');
+  setInvoiceMediaView('invoice');
   refreshInvoiceMedia();
 }
 function closeInvoiceMediaModal() {
-  const modal = document.getElementById('invoiceMediaModal');
+  if (invoiceMedia.uploading) {
+    showAppToast('پس از پایان آپلود می‌توانید این پنجره را ببندید.');
+    return;
+  }
+  const modal = mediaElement('invoiceMediaModal');
   if (modal) modal.style.display = 'none';
   invoiceMedia.generation++;
-  const dialog = document.getElementById('invoiceMediaPreview');
-  if (dialog?.open) dialog.close();
-  if (typeof closeInvoiceMediaPreview === 'function') closeInvoiceMediaPreview();
+  releaseMediaThumbnails();
+  const preview = mediaElement('invoiceMediaPreview');
+  if (preview?.open) preview.close();
+  closeInvoiceMediaPreview();
+}
+function updateInvoiceMediaTarget() {
+  const select = mediaElement('invoiceMediaSerialSelect');
+  const example = mediaElement('invoiceMediaNameSample');
+  const prefix = invoiceMedia.uploadScope === 'serial' ? (select?.value || 'SERIAL') : (invoiceMedia.invoice || 'FACTOR');
+  example.textContent = prefix + '-01.jpg';
+  updateInvoiceMediaSelection();
+}
+function setInvoiceMediaUploadScope(scope) {
+  invoiceMedia.uploadScope = scope === 'serial' ? 'serial' : 'invoice';
+  for (const key of ['invoice','serial']) {
+    const chosen = invoiceMedia.uploadScope === key;
+    const label = key === 'invoice' ? 'Invoice' : 'Serial';
+    mediaElement('invoiceMediaScope' + label)?.classList.toggle('is-active',chosen);
+    const panel = mediaElement('invoiceMedia' + label + 'Panel');
+    if (panel) panel.hidden = !chosen;
+  }
+  updateInvoiceMediaTarget();
+}
+function setInvoiceMediaView(view) {
+  invoiceMedia.view = view === 'serial' ? 'serial' : 'invoice';
+  for (const key of ['invoice','serial']) {
+    const selected = invoiceMedia.view === key;
+    const label = key === 'invoice' ? 'Invoice' : 'Serial';
+    mediaElement('invoiceMediaView' + label)?.classList.toggle('is-active', selected);
+    const panel = mediaElement('invoiceMedia' + label + 'View');
+    if (panel) panel.hidden = !selected;
+  }
+  if (invoiceMedia.files.length) drawInvoiceMedia();
+}
+function chooseInvoiceMediaFiles() {
+  if (!invoiceMedia.technician || invoiceMedia.uploading) return;
+  if (invoiceMedia.uploadScope === 'serial' && !mediaElement('invoiceMediaSerialSelect')?.value) {
+    showAppToast('ابتدا سریال سرور را انتخاب کنید.'); return;
+  }
+  const input = mediaElement(invoiceMedia.uploadScope === 'serial' ? 'invoiceMediaSerialFiles' : 'invoiceMediaInvoiceFiles');
+  input?.click();
+}
+function updateInvoiceMediaSelection() {
+  const input = mediaElement(invoiceMedia.uploadScope === 'serial' ? 'invoiceMediaSerialFiles' : 'invoiceMediaInvoiceFiles');
+  const files = Array.from(input?.files || []);
+  const label = mediaElement('invoiceMediaSelection');
+  const button = mediaElement('invoiceMediaUploadButton');
+  if (!files.length) {
+    label.textContent = 'هنوز فایلی انتخاب نشده است.';
+  } else {
+    const total = files.reduce((sum,file) => sum + file.size, 0);
+    label.textContent = files.length + ' فایل انتخاب شد · مجموع ' + mediaSize(total) +
+      (files.some(file => !file.size || file.size > 500 * 1024 * 1024) ? ' · فایل نامعتبر یا بیش از حد مجاز' : '');
+  }
+  button.disabled = invoiceMedia.uploading || !files.length || !invoiceMedia.technician ||
+    (invoiceMedia.uploadScope === 'serial' && !mediaElement('invoiceMediaSerialSelect')?.value);
 }
 async function refreshInvoiceMedia() {
   const id = invoiceMedia.orderId;
   if (!id) return;
   const generation = ++invoiceMedia.generation;
-  const root = document.getElementById('invoiceMediaSerialGroups');
-  root.textContent = 'در حال بارگذاری...';
+  const root = mediaElement('invoiceMediaSerialGroups');
+  if (root) root.textContent = 'در حال دریافت فهرست فایل‌ها...';
   try {
     const response = await apiFetch(API_URL + '/orders/' + id + '/media');
-    if (!response.ok) throw new Error('دریافت مدیاهای فاکتور ناموفق بود.');
+    if (!response.ok) throw new Error('دریافت فایل‌های فاکتور ناموفق بود.');
     const data = await response.json();
     if (invoiceMedia.generation !== generation || invoiceMedia.orderId !== id) return;
+    invoiceMedia.invoice = String(data.invoice_number || '');
     invoiceMedia.serials = Array.isArray(data.serials) ? data.serials : [];
     invoiceMedia.files = Array.isArray(data.files) ? data.files : [];
     invoiceMedia.technician = Boolean(data.can_manage);
-    document.getElementById('invoiceMediaModalTitle').textContent = 'مدیریت مدیاهای فاکتور ' + data.invoice_number;
-    document.getElementById('invoiceMediaUploader').hidden = !invoiceMedia.technician;
-    document.getElementById('invoiceMediaSerialUploader').hidden = !invoiceMedia.technician;
-    const selector = document.getElementById('invoiceMediaSerialSelect');
-    const previous = selector.value;
-    selector.replaceChildren();
+    mediaElement('invoiceMediaModalTitle').textContent = 'فایل‌های فاکتور ' + invoiceMedia.invoice;
+    mediaElement('invoiceMediaUploader').hidden = !invoiceMedia.technician;
+    const select = mediaElement('invoiceMediaSerialSelect');
+    const old = select.value;
+    select.replaceChildren();
     for (const serial of invoiceMedia.serials) {
       const option = document.createElement('option');
-      option.value = serial; option.textContent = serial;
-      selector.append(option);
+      option.value = serial; option.textContent = serial; select.append(option);
     }
-    if (invoiceMedia.serials.includes(previous)) selector.value = previous;
+    if (invoiceMedia.serials.includes(old)) select.value = old;
     if (!invoiceMedia.serials.length) {
       const option = document.createElement('option');
-      option.textContent = 'ابتدا سریال سرور را در مدیریت سریال‌ها ثبت کنید';
-      option.value = ''; selector.append(option);
+      option.textContent = 'سریالی ثبت نشده است'; option.value = ''; select.append(option);
     }
-    selector.disabled = !invoiceMedia.serials.length;
-    document.getElementById('invoiceMediaSerialFiles').disabled = !invoiceMedia.serials.length;
+    select.disabled = !invoiceMedia.serials.length;
+    const count = invoiceMedia.files.filter(f => f.media_scope === 'serial').length;
+    mediaElement('invoiceMediaSummary').textContent = invoiceMedia.files.length + ' فایل · ' + invoiceMedia.serials.length + ' سریال ثبت‌شده';
+    mediaElement('invoiceMediaInvoiceCount').textContent = invoiceMedia.files.length - count;
+    mediaElement('invoiceMediaSerialCount').textContent = count;
+    updateInvoiceMediaTarget();
     drawInvoiceMedia();
-  } catch (error) {
-    if (invoiceMedia.generation === generation) root.textContent = error.message || 'خطا در دریافت فایل‌ها';
+  } catch(error) {
+    if (generation === invoiceMedia.generation) {
+      if(root) root.textContent = error.message || 'خطا در دریافت اطلاعات';
+      mediaElement('invoiceMediaSummary').textContent = 'بارگذاری ناموفق بود';
+    }
   }
 }
-function createMediaButton(label, css, handler) {
-  const button = document.createElement('button');
-  button.type = 'button'; button.textContent = label; button.className = css;
-  button.addEventListener('click', handler);
-  return button;
+function mediaButton(label,css,handler) {
+  const btn = document.createElement('button');
+  btn.type='button'; btn.className=css; btn.textContent=label;
+  btn.addEventListener('click',handler);
+  return btn;
 }
-function drawMediaRows(container, files) {
+function fileType(file) {
+  const mime = String(file.mime_type || '');
+  const ext = String(file.download_name || file.original_name || '').toLowerCase().split('.').pop();
+  if (mime.startsWith('video/')) return {kind:'video',ext};
+  if (mime.startsWith('image/')) return {kind:'image',ext};
+  return {kind:'document',ext};
+}
+function mediaPreviewable(file) {
+  return ['image/jpeg','image/png','image/webp','image/gif','image/bmp',
+    'video/mp4','video/webm','video/quicktime','application/pdf'].includes(file.mime_type);
+}
+function drawMediaRows(container,files) {
   container.replaceChildren();
   if (!files.length) {
-    const empty = document.createElement('div');
-    empty.className = 'invoice-media-empty'; empty.textContent = 'فایلی ثبت نشده است.';
+    const empty=document.createElement('div');
+    empty.className='invoice-media-empty';
+    empty.innerHTML = '<span class="invoice-media-empty-icon">▧</span><strong>فایلی وجود ندارد</strong><small>فایل‌های جدید اینجا نمایش داده می‌شوند.</small>';
     container.append(empty); return;
   }
   for (const file of files) {
-    const item = document.createElement('div');
-    item.className = 'invoice-media-item';
-    const icon = document.createElement('div');
-    icon.className = 'invoice-media-icon';
-    icon.textContent = file.mime_type?.startsWith('image/') ? '🖼️'
-      : file.mime_type?.startsWith('video/') ? '🎬' : '📄';
-    const details = document.createElement('div');
-    details.className = 'invoice-media-details';
-    const title = document.createElement('strong');
-    title.textContent = file.download_name || file.original_name;
-    title.title = file.original_name;
-    const subtitle = document.createElement('small');
-    subtitle.textContent = mediaSize(file.stored_bytes) +
-      (file.uploader_name ? ' · ' + file.uploader_name : '') +
-      (file.original_name ? ' · اصل: ' + file.original_name : '');
-    details.append(title, subtitle);
-    const actions = document.createElement('div');
-    actions.className = 'invoice-media-actions';
-    const browserPreview = ['image/jpeg','image/png','image/webp','image/gif','image/bmp','video/mp4','video/webm','video/quicktime','application/pdf'];
-    if (browserPreview.includes(file.mime_type)) {
-      actions.append(createMediaButton('نمایش', 'soft-primary-btn', () => previewInvoiceMedia(file)));
+    const card=document.createElement('article');
+    card.className='invoice-media-file-card';
+    const type=fileType(file);
+    const visual=document.createElement('div');
+    visual.className='invoice-media-file-thumb';
+    if (type.kind==='document') {
+      const doc=mediaIcon(type.ext);
+      const tile=document.createElement('div');
+      tile.className='invoice-media-ext-tile invoice-media-ext-'+doc.kind;
+      const icon=document.createElement('span'); icon.textContent=doc.label;
+      const small=document.createElement('small'); small.textContent=type.ext.toUpperCase();
+      tile.append(icon,small); visual.append(tile);
+    } else {
+      visual.classList.add('is-previewable');
+      const placeholder=document.createElement('span');
+      placeholder.className='invoice-media-image-placeholder';
+      placeholder.textContent=type.kind==='video'?'▶':'▧';
+      visual.append(placeholder);
+      visual.dataset.mediaId=String(file.id);
+      if (type.kind==='video') {
+        const play=document.createElement('span');
+        play.className='invoice-media-play';play.textContent='▶';visual.append(play);
+      }
+      if (invoiceMedia.thumbnailObserver) invoiceMedia.thumbnailObserver.observe(visual);
+      if (mediaPreviewable(file)) {
+        visual.setAttribute('role','button');visual.setAttribute('tabindex','0');
+        visual.addEventListener('click',()=>previewInvoiceMedia(file));
+        visual.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();previewInvoiceMedia(file)}});
+      }
     }
-    actions.append(createMediaButton('دانلود', 'secondary-btn', () => downloadInvoiceMedia(file)));
-    if (invoiceMedia.technician) actions.append(createMediaButton('حذف', 'soft-danger-btn', () => deleteInvoiceMedia(file)));
-    item.append(icon, details, actions);
-    container.append(item);
+    const meta=document.createElement('div');meta.className='invoice-media-file-meta';
+    const name=document.createElement('strong');
+    name.className='invoice-media-file-name';
+    name.textContent=file.download_name||file.original_name;
+    name.title=file.original_name||'';
+    const sub=document.createElement('span');
+    sub.textContent=mediaSize(file.stored_bytes)+(file.uploader_name?' · '+file.uploader_name:'');
+    meta.append(name,sub);
+    const actions=document.createElement('div');actions.className='invoice-media-file-actions';
+    if (mediaPreviewable(file)) actions.append(mediaButton('نمایش','invoice-media-action-view',()=>previewInvoiceMedia(file)));
+    actions.append(mediaButton('دریافت','invoice-media-action-download',()=>downloadInvoiceMedia(file)));
+    if (invoiceMedia.technician) actions.append(mediaButton('حذف','invoice-media-action-delete',()=>deleteInvoiceMedia(file)));
+    card.append(visual,meta,actions);
+    container.append(card);
   }
 }
 function drawInvoiceMedia() {
-  const files = invoiceMedia.files;
-  const invoiceFiles = files.filter(f => f.media_scope !== 'serial');
-  drawMediaRows(document.getElementById('invoiceMediaInvoiceList'), invoiceFiles);
-  document.getElementById('invoiceMediaInvoiceDownloadAll').hidden = invoiceFiles.length === 0;
-  const grouped = document.getElementById('invoiceMediaSerialGroups');
-  grouped.replaceChildren();
-  // Match the exact order entered in "Serial Management" rather than alphabetical order.
-  const serials = invoiceMedia.serials.slice();
-  for (const f of files) {
-    if (f.media_scope === 'serial' && f.serial_number && !serials.includes(f.serial_number)) serials.push(f.serial_number);
+  releaseMediaThumbnails();
+  if ('IntersectionObserver' in window) {
+    invoiceMedia.thumbnailObserver = new IntersectionObserver((entries,observer)=>{
+      for(const entry of entries) if(entry.isIntersecting){
+        observer.unobserve(entry.target);
+        fetchMediaThumbnail(entry.target.dataset.mediaId,entry.target,invoiceMedia.generation);
+      }
+    },{root:mediaElement('invoiceMediaModal').querySelector('.invoice-media-modal-body'),rootMargin:'140px'});
   }
+  const files=invoiceMedia.files;
+  const invoiceFiles=files.filter(file => file.media_scope!=='serial');
+  drawMediaRows(mediaElement('invoiceMediaInvoiceList'),invoiceFiles);
+  mediaElement('invoiceMediaInvoiceDownloadAll').hidden=!invoiceFiles.length;
+  const groups=mediaElement('invoiceMediaSerialGroups');
+  groups.replaceChildren();
+  const serials=invoiceMedia.serials.slice();
+  for(const file of files) if(file.media_scope==='serial' && file.serial_number && !serials.includes(file.serial_number)) serials.push(file.serial_number);
   if (!serials.length) {
-    const empty = document.createElement('div');
-    empty.className = 'invoice-media-empty';
-    empty.textContent = 'هنوز سریالی در مدیریت سریال‌ها ثبت نشده است.';
-    grouped.append(empty);
-    return;
+    const empty=document.createElement('div');empty.className='invoice-media-empty';
+    empty.textContent='ابتدا سریال‌ها را در مدیریت سریال‌ها ثبت کنید.';groups.append(empty);
   }
-  for (const serial of serials) {
-    const serialFiles = files.filter(f => f.media_scope === 'serial' && f.serial_number === serial);
-    const box = document.createElement('details');
-    box.className = 'invoice-media-serial-group';
-    const header = document.createElement('summary');
-    const name = document.createElement('strong');
-    name.textContent = serial;
-    const count = document.createElement('span');
-    count.textContent = serialFiles.length + ' فایل';
-    header.append(name, count);
-    box.append(header);
-    const body = document.createElement('div');
-    body.className = 'invoice-media-serial-body';
-    drawMediaRows(body, serialFiles);
-    box.append(body);
-    if (serialFiles.length) {
-      const all = createMediaButton('دانلود تمام فایل‌های این سریال (ZIP)', 'secondary-btn',
-        () => downloadInvoiceMediaGroup('serial', serial));
-      all.classList.add('invoice-media-group-download');
-      box.append(all);
+  let firstWithFiles = true;
+  for(const serial of serials) {
+    const serialFiles=files.filter(file => file.media_scope==='serial' && file.serial_number===serial);
+    const box=document.createElement('details');box.className='invoice-media-serial-group';
+    box.dataset.serial=serial;
+    if(invoiceMedia.expandedSerials.has(serial) || (firstWithFiles && !invoiceMedia.expandedSerials.size && serialFiles.length && invoiceMedia.view==='serial')) {
+      box.open=true;
     }
-    grouped.append(box);
+    if(serialFiles.length)firstWithFiles=false;
+    const summary=document.createElement('summary');
+    const heading=document.createElement('span');heading.className='invoice-media-serial-label';
+    const icon=document.createElement('span');icon.textContent='▤';
+    const name=document.createElement('strong');name.textContent=serial;
+    heading.append(icon,name);
+    const badge=document.createElement('span');badge.className='invoice-media-serial-count';badge.textContent=serialFiles.length+' فایل';
+    summary.append(heading,badge);
+    const body=document.createElement('div');body.className='invoice-media-serial-content';
+    body.hidden=!box.open;
+    if(box.open)drawMediaRows(body,serialFiles);
+    box.addEventListener('toggle',()=>{
+      if(box.open) {
+        invoiceMedia.expandedSerials.add(serial);
+        body.hidden=false;
+        drawMediaRows(body,serialFiles);
+      } else {
+        invoiceMedia.expandedSerials.delete(serial);
+        body.replaceChildren();body.hidden=true;
+      }
+    });
+    box.append(summary,body);
+    if (serialFiles.length) {
+      const footer=document.createElement('div');footer.className='invoice-media-group-footer';
+      footer.append(mediaButton('دانلود همه فایل‌های این سریال (ZIP)','secondary-btn',
+        ()=>downloadInvoiceMediaGroup('serial',serial)));
+      box.append(footer);
+    }
+    groups.append(box);
   }
+  if (!invoiceMedia.thumbnailObserver) {
+    for(const target of mediaElement('invoiceMediaModal').querySelectorAll('.invoice-media-file-thumb[data-media-id]')) {
+      fetchMediaThumbnail(target.dataset.mediaId,target,invoiceMedia.generation);
+    }
+  }
+}
+async function fetchMediaThumbnail(mediaId,target,generation) {
+  if (!target.isConnected || !mediaId) return;
+  const id=invoiceMedia.orderId;
+  try {
+    const res=await apiFetch(API_URL+'/orders/'+id+'/media/'+mediaId+'/thumbnail');
+    if (!res.ok) return;
+    const blob=await res.blob();
+    if (generation!==invoiceMedia.generation || !target.isConnected || invoiceMedia.orderId!==id) return;
+    const url=URL.createObjectURL(blob);invoiceMedia.urls.add(url);
+    const img=document.createElement('img');
+    img.src=url;img.alt='پیش‌نمایش فایل';img.loading='lazy';
+    target.prepend(img);
+    const placeholder=target.querySelector('.invoice-media-image-placeholder');
+    if(placeholder)placeholder.remove();
+  }catch(error){console.warn('Thumbnail unavailable',error)}
 }
 async function requestMediaTicket(payload) {
-  if (!invoiceMedia.orderId) throw new Error('فاکتور انتخاب نشده است.');
-  const response = await apiFetch(API_URL + '/orders/' + invoiceMedia.orderId + '/media/ticket', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+  if(!invoiceMedia.orderId)throw new Error('فاکتوری انتخاب نشده است.');
+  const res=await apiFetch(API_URL+'/orders/'+invoiceMedia.orderId+'/media/ticket',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
   });
-  const result = await response.json();
-  if (!response.ok || !result.url) throw new Error(result.error || 'ساخت لینک دانلود ناموفق بود.');
-  return result.url;
+  const data=await res.json();
+  if(!res.ok || !data.url)throw new Error(data.error||'امکان دریافت لینک وجود ندارد.');
+  return data.url;
 }
-function activateMediaLink(url, asDownload) {
-  const anchor = document.createElement('a');
-  anchor.href = url; anchor.style.display = 'none';
-  if (asDownload) anchor.download = '';
-  document.body.append(anchor); anchor.click(); anchor.remove();
+function followMediaLink(url,download) {
+  const a=document.createElement('a');
+  a.href=url;a.style.display='none';
+  if(download)a.download='';
+  document.body.append(a);a.click();a.remove();
 }
 async function downloadInvoiceMedia(file) {
-  try {
-    const url = await requestMediaTicket({kind:'file',file_id:file.id,inline:false});
-    activateMediaLink(url, true);
-  } catch (error) { showAppToast(error.message || 'دانلود ناموفق بود'); }
+  try{followMediaLink(await requestMediaTicket({kind:'file',file_id:file.id,inline:false}),true)}
+  catch(error){showAppToast(error.message||'خطا در دریافت فایل')}
 }
-async function downloadInvoiceMediaGroup(scope, serial) {
-  try {
-    const url = await requestMediaTicket({
-      kind:'zip',scope:scope,serial_number:scope==='serial'?serial:undefined
-    });
-    activateMediaLink(url, true);
-  } catch(error) { showAppToast(error.message || 'دانلود گروهی ناموفق بود'); }
+async function downloadInvoiceMediaGroup(scope,serial) {
+  try{followMediaLink(await requestMediaTicket({kind:'zip',scope,serial_number:scope==='serial'?serial:undefined}),true)}
+  catch(error){showAppToast(error.message||'خطا در دریافت گروهی')}
 }
 async function previewInvoiceMedia(file) {
-  const dialog = document.getElementById('invoiceMediaPreview');
-  const body = document.getElementById('invoiceMediaPreviewBody');
-  body.replaceChildren();
-  document.getElementById('invoiceMediaPreviewTitle').textContent = file.download_name || file.original_name;
-  try {
-    const url = await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
-    const mime = String(file.mime_type || '');
+  const dialog=mediaElement('invoiceMediaPreview');
+  const body=mediaElement('invoiceMediaPreviewBody');
+  body.replaceChildren();body.classList.remove('is-actual-size');
+  mediaElement('invoiceMediaPreviewTitle').textContent=file.download_name||file.original_name;
+  mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaSize(file.stored_bytes);
+  const zoom=mediaElement('invoiceMediaActualSize');
+  zoom.hidden=true;zoom.textContent='اندازه واقعی (۱۰۰٪)';
+  try{
+    const url=await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
+    const type=String(file.mime_type||'');
     let element;
-    if (mime.startsWith('image/')) {
-      element = document.createElement('img');
-      element.alt = file.download_name || file.original_name;
-    } else if (mime.startsWith('video/')) {
-      element = document.createElement('video'); element.controls = true;
-      element.preload = 'metadata';
-    } else if (mime === 'application/pdf') {
-      element = document.createElement('iframe');
-      element.title = file.download_name || file.original_name;
-      element.style.width='min(85vw,980px)'; element.style.height='75vh'; element.style.border='none';
-    } else {
-      return downloadInvoiceMedia(file);
-    }
-    element.src = url;
-    body.append(element);
+    if(type.startsWith('image/')) {
+      element=document.createElement('img');element.alt=file.download_name||file.original_name;
+      zoom.hidden=false;
+    } else if(type.startsWith('video/')) {
+      element=document.createElement('video');element.controls=true;element.preload='metadata';
+    } else if(type==='application/pdf') {
+      element=document.createElement('iframe');element.title=file.download_name||file.original_name;
+    } else return downloadInvoiceMedia(file);
+    element.src=url;body.append(element);
     dialog.showModal();
-  } catch(error) { showAppToast(error.message || 'نمایش فایل ناموفق بود'); }
+  }catch(error){showAppToast(error.message||'خطا در نمایش')}
+}
+function toggleInvoiceMediaActualSize() {
+  const body=mediaElement('invoiceMediaPreviewBody');
+  const actual=body.classList.toggle('is-actual-size');
+  mediaElement('invoiceMediaActualSize').textContent=actual?'تناسب با صفحه':'اندازه واقعی (۱۰۰٪)';
 }
 function closeInvoiceMediaPreview() {
-  const body = document.getElementById('invoiceMediaPreviewBody');
-  if (body) body.replaceChildren();
+  const body=mediaElement('invoiceMediaPreviewBody');
+  if(body) {body.replaceChildren();body.classList.remove('is-actual-size')}
 }
-async function uploadInvoiceMedia(scope) {
-  if (!invoiceMedia.technician || !invoiceMedia.orderId || invoiceMedia.uploading) return;
-  const serial = scope === 'serial' ? document.getElementById('invoiceMediaSerialSelect').value : '';
-  if (scope === 'serial' && !serial) return showAppToast('سریال سرور را انتخاب کنید.');
-  const input = document.getElementById(scope === 'serial' ? 'invoiceMediaSerialFiles' : 'invoiceMediaInvoiceFiles');
-  const files = Array.from(input.files || []);
-  if (!files.length) return showAppToast('فایلی انتخاب نشده است.');
-  const id = invoiceMedia.orderId;
-  invoiceMedia.uploading = true;
-  const buttons = document.querySelectorAll('#invoiceMediaModal button');
-  buttons.forEach(b => b.disabled = true);
-  const progress = document.getElementById('invoiceMediaProgress');
-  let done=0;
-  try {
-    for (const [index, file] of files.entries()) {
-      if (file.size > 500*1024*1024 || !file.size) {
-        showAppToast('حجم فایل ' + file.name + ' نامعتبر یا بیشتر از ۵۰۰ مگابایت است.');
-        continue;
+async function uploadInvoiceMedia() {
+  if(!invoiceMedia.technician || !invoiceMedia.orderId || invoiceMedia.uploading)return;
+  const scope=invoiceMedia.uploadScope;
+  const serial=scope==='serial'?mediaElement('invoiceMediaSerialSelect').value:'';
+  if(scope==='serial'&&!serial)return showAppToast('سریال انتخاب نشده است.');
+  const input=mediaElement(scope==='serial'?'invoiceMediaSerialFiles':'invoiceMediaInvoiceFiles');
+  const files=Array.from(input.files||[]);
+  if(!files.length)return showAppToast('فایلی انتخاب نشده است.');
+  const orderId=invoiceMedia.orderId;
+  invoiceMedia.uploading=true;
+  const button=mediaElement('invoiceMediaUploadButton');
+  button.disabled=true;
+  const status=mediaElement('invoiceMediaProgress');
+  let successful=0;
+  try{
+    for(const [index,file] of files.entries()) {
+      if(!file.size || file.size>500*1024*1024){
+        showAppToast('حجم فایل '+file.name+' نامعتبر است یا بیش از ۵۰۰ مگابایت است.');continue;
       }
-      progress.textContent = 'آپلود ' + (index+1) + ' از ' + files.length + ': ' + file.name;
-      try {
-        const response = await apiFetch(API_URL + '/orders/' + id + '/media', {
-          method: 'POST', headers: {
-            'Content-Type': 'application/octet-stream',
-            'X-File-Name': encodeURIComponent(file.name),
-            'X-Media-Scope': scope,
-            ...(serial ? {'X-Media-Serial':serial} : {})
-          }, body: file
+      status.textContent='در حال آپلود '+(index+1)+' از '+files.length+': '+file.name;
+      try{
+        const response=await apiFetch(API_URL+'/orders/'+orderId+'/media',{
+          method:'POST',headers:{'Content-Type':'application/octet-stream','X-File-Name':encodeURIComponent(file.name),
+            'X-Media-Scope':scope,...(serial?{'X-Media-Serial':serial}:{})},body:file
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'ثبت فایل ناموفق بود.');
-        done++;
-      } catch(error) { showAppToast(file.name + ': ' + error.message); }
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error||'آپلود ناموفق بود.');
+        successful++;
+      }catch(error){showAppToast(file.name+': '+error.message)}
     }
-    input.value = '';
-    if (id === invoiceMedia.orderId) await refreshInvoiceMedia();
-    progress.textContent = done + ' فایل ثبت شد.';
-  } finally {
-    invoiceMedia.uploading = false;
-    buttons.forEach(b => b.disabled = false);
+    input.value='';
+    if(invoiceMedia.orderId===orderId) {
+      invoiceMedia.view=scope;
+      await refreshInvoiceMedia();
+      setInvoiceMediaView(scope);
+      status.textContent=successful+' فایل ثبت شد.';
+    }
+  }finally{
+    invoiceMedia.uploading=false;
+    updateInvoiceMediaSelection();
   }
 }
 async function deleteInvoiceMedia(file) {
-  if (!invoiceMedia.technician || !invoiceMedia.orderId) return;
-  if (!confirm('فایل «' + (file.download_name || file.original_name) + '» حذف شود؟')) return;
-  try {
-    const response = await apiFetch(API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id,{method:'DELETE'});
-    if (!response.ok) throw new Error((await response.json()).error||'حذف ناموفق بود.');
+  if(!invoiceMedia.technician||!invoiceMedia.orderId)return;
+  if(!confirm('فایل «'+(file.download_name||file.original_name)+'» حذف شود؟'))return;
+  try{
+    const res=await apiFetch(API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id,{method:'DELETE'});
+    if(!res.ok)throw new Error((await res.json()).error||'حذف ناموفق بود.');
     await refreshInvoiceMedia();
-  } catch(error) { showAppToast(error.message || 'حذف ناموفق بود'); }
+  }catch(error){showAppToast(error.message||'حذف ناموفق بود')}
 }
-document.getElementById('invoiceMediaPreview')?.addEventListener('close', closeInvoiceMediaPreview);
+function bindInvoiceMediaDrop() {
+  const area=mediaElement('invoiceMediaDropzone');
+  if(!area)return;
+  for (const type of ['dragenter','dragover']) {
+    area.addEventListener(type,event=>{event.preventDefault();area.classList.add('is-dragging')});
+  }
+  for (const type of ['dragleave','drop']) {
+    area.addEventListener(type,event=>{event.preventDefault();area.classList.remove('is-dragging')});
+  }
+  area.addEventListener('drop',event=>{
+    if(!invoiceMedia.technician || invoiceMedia.uploading)return;
+    const input=mediaElement(invoiceMedia.uploadScope==='serial'?'invoiceMediaSerialFiles':'invoiceMediaInvoiceFiles');
+    if(!input || (invoiceMedia.uploadScope==='serial'&&!mediaElement('invoiceMediaSerialSelect')?.value))return;
+    const list=event.dataTransfer?.files;
+    if(list?.length){input.files=list;updateInvoiceMediaSelection()}
+  });
+}
+bindInvoiceMediaDrop();
+mediaElement('invoiceMediaPreview')?.addEventListener('close',closeInvoiceMediaPreview);
