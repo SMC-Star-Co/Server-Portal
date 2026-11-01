@@ -1,44 +1,46 @@
-# راهنمای راه‌اندازی و آزمایش فایل‌های فنی Portal
+# راهنمای آزمایش مدیریت مدیاهای فاکتور (فقط smc-server)
 
-این قابلیت فقط در Branch توسعه پیاده‌سازی شده و هنوز روی سرور اصلی نصب نشده است.
+نسخه جدید در Branch `develop` است. `main`، سرور اصلی و `.env` تغییر نکرده‌اند.
 
-## راه‌اندازی روی smc-server
+## اول: پاک کردن فایل‌های قبلی قبل از Pull
 
-1. در VS Code ترمینال سرور تست را باز کنید: `hostname` باید `smc-server` باشد.
-2. وضعیت Git را بررسی کنید: `cd /root/portal && git status -sb`.
-3. آخرین تغییرات را بگیرید: `git pull --ff-only origin develop`.
-4. پوشه مستقل فایل‌ها را بسازید: `mkdir -p /root/portal-media`.
-5. فقط کانتینر Node.js تست را بازسازی کنید: `docker compose up -d --build app`.
-6. سلامت سرویس: `docker compose ps` و `docker logs --tail 80 node_app`.
-7. تست منطق و نوع فایل‌ها: `docker exec node_app node --test test/invoice-media.test.js`.
-8. پشتیبانی از HEIC/WebP را ببینید: `docker exec node_app magick -list format | grep -E 'HEIC|HEIF|JPEG|PNG|WEBP'`.
+ابتدا با `hostname` مطمئن شوید روی `smc-server` هستید. این پاک‌سازی تمامی مدیاهای آزمایشی قبلی سرور تست را حذف می‌کند، اما هیچ فاکتوری را حذف نمی‌کند.
 
-## تست در مرورگر
+```bash
+docker exec postgres_db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT COUNT(*) FROM invoice_media;"'
+docker exec postgres_db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "TRUNCATE TABLE invoice_media RESTART IDENTITY;"'
+test "$(realpath /root/portal-media)" = "/root/portal-media" && find /root/portal-media -maxdepth 1 -type f -delete
+```
 
-- با حساب تکنسین فنی وارد شوید؛ یک فاکتور تست را باز کنید؛ در مدیریت فاکتور بخش مستندات فنی را ببینید.
-- یک JPG و یک PNG و در صورت امکان HEIC واقعی آپلود کنید. حالت WebP کیفیت ۹۵ و حفظ کامل جزئیات را جداگانه امتحان کنید.
-- حجم فایل نمایش‌داده‌شده، پیش‌نمایش با زوم، دانلود و حذف را آزمایش کنید.
-- با حساب فروش وارد شوید: مشاهده و دانلود مجاز و آپلود و حذف مخفی و توسط سرور غیرمجاز باشد.
-- فاکتور ماه قبل را از بایگانی باز کنید و مستندات آن را ببینید.
-- برای تست ویدیو از MP4 کوچک‌تر از ۱۶ مگابایت استفاده کنید؛ ویدیو فعلاً فشرده‌سازی مجدد نمی‌شود.
+## دوم: دریافت و راه‌اندازی نسخه جدید
 
-## سیاست‌های فایل
+```bash
+cd /root/portal
+git status -sb
+git pull --ff-only origin develop
+docker compose up -d --no-deps --build app
+docker exec nginx_web nginx -t && docker exec nginx_web nginx -s reload
+docker compose ps
+docker logs --tail 60 node_app
+docker exec node_app node --test test/invoice-media.test.js
+docker exec node_app zip -v | head -n 3
+```
 
-- JPG/HEIC در حالت معمولی با WebP کیفیت ۹۵ و بدون تغییر اندازه تبدیل می‌شوند، اگر خروجی JPG بزرگ‌تر شود همان JPG اصلی نگه داشته می‌شود.
-- حالت حفظ جزئیات و تصاویر PNG با WebP Lossless پردازش می‌شوند و در صورت بزرگ‌تر بودن خروجی، اصل JPEG/PNG/WebP نگه داشته می‌شود.
-- HEIC برای پشتیبانی مرورگر باید تبدیل شود؛ موفقیت آن به کدک HEIC نصب‌شده در Docker بستگی دارد.
-- حجم فایل مجاز ۱۶ مگابایت، سهمیه مجموع ۱۰۰ گیگابایت، حداقل فضای خالی دیسک ۲ گیگابایت است.
-- فایل‌های تکراری یکسان در همان فاکتور دوباره ذخیره نمی‌شوند.
+## قابلیت‌ها
 
-## ذخیره‌سازی و بکاپ
+- منوی داخلی مجزا «مدیریت مدیاها» در مدیریت فاکتور؛ بدون تغییر فرم‌های دیگر.
+- دو بخش مستقل آپلود: فایل فاکتور و فایل سرور با انتخاب سریال موجود.
+- عکس، ویدیو و اسناد (PDF، Word، Excel، PowerPoint و ...) بدون هیچ فشرده‌سازی یا تبدیل نگهداری می‌شوند.
+- حداکثر حجم هر فایل ۵۰۰ مگابایت (۵۰۰ MiB)؛ آپلود جریانی.
+- نام فایل فاکتور: `40428-01.jpg`، `40428-02.pdf` و ... .
+- نام فایل سرور: `2M201002KG-01.jpg`، `2M201002KG-02.mp4` و ... .
+- ترتیب گروه‌بندی سریال‌ها همان ترتیب موجود در مدیریت سریال‌هاست.
+- هر گروه سریال با کلیک باز و بسته می‌شود؛ دانلود تک‌فایل و کل گروه با ZIP.
+- مجوز آپلود/حذف فقط تکنسین؛ مشاهده/دانلود برای فروش.
+- بعضی مرورگرها HEIC را پیش‌نمایش نمی‌کنند؛ فایل اصلی قابل دانلود است.
 
-- اصل فایل‌ها در `/root/portal-media` روی Ubuntu تست هستند و در Docker از `/app/media` قابل دسترسی‌اند.
-- اطلاعات مربوط به فایل‌ها در جدول PostgreSQL به نام `invoice_media` نگهداری می‌شود.
-- `pg_dump` محتوای فایل‌های تصویر را شامل نمی‌شود؛ برای پشتیبان‌گیری کامل، هم دیتابیس و هم `/root/portal-media` را نگهداری کنید.
-- هیچ فایلی در GitHub ذخیره نمی‌شود؛ فایل `.env` تغییری نکرده است.
+## ذخیره‌سازی
 
-## اگر مشکلی دیدید
-
-- برای خطای Build یا HEIC خروجی `docker compose logs --tail 100 app` را بررسی کنید.
-- برای وضعیت مسیر: `ls -ld /root/portal-media`.
-- از روی سرور تست به‌صورت آزمایشی می‌توانید فایل‌های واقعی را بررسی کنید؛ ابتدا روی سرور اصلی هیچ تغییری ندهید.
+- محل فایل‌ها روی میزبان: `/root/portal-media`، داخل Node.js: `/app/media`.
+- رکوردهای فایل در جدول `invoice_media` هستند. بکاپ باید هم PostgreSQL و هم مسیر فایل‌ها را شامل شود.
+- سهمیه مجموع ۱۰۰ GiB تغییر نکرده است؛ سقف هر فایل ۵۰۰ MiB است.
