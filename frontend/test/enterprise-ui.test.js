@@ -37,8 +37,8 @@ test('dashboard is wired to existing real order totals and status filters',()=>{
  assert.match(html,/onclick="setStatusFilter\('Completed'\)"/);
 });
 test('app stylesheets are brand-new core and media surfaces, not legacy overlay',()=>{
- assert.match(core,/STUDIO \/ OPERATIONS — Portal UI 2\.0/);
- assert.match(media,/completely rewritten for Portal 2\.0/);
+ assert.match(core,/SSP \/ ATLAS WORKSTATION/);
+ assert.match(media,/ATLAS VAULT/);
  assert.ok(core.length>30000);
  assert.ok(media.length>12000);
  assert.ok(!fs.existsSync(path.join(root,'assets/css/enterprise.css')),'legacy overlay stylesheet deleted');
@@ -71,7 +71,7 @@ test('all functional modules and touch-ready viewport are present',()=>{
  assert.match(media,/@media\(max-width:740px\)/);
 });
 test('main UI interactions persist only cosmetic preferences',()=>{
- for(const p of ['theme','density','sidebar'])assert.ok(enterprise.includes("portal.enterprise.")||p);
+ for(const p of ['theme','density','sidebar'])assert.ok(enterprise.includes("'"+p+"'"),p);
  assert.match(enterprise,/MutationObserver/);
  assert.match(enterprise,/localStorage/);
  assert.ok(!enterprise.includes('fetch('),'no UI network calls');
@@ -82,4 +82,36 @@ test('media flows retain original download and replacement handlers',()=>{
  assert.match(media,/invoice-media-file-card/);
  assert.match(media,/invoice-media-serial-chip/);
  assert.match(media,/invoice-media-preview-body/);
+});
+
+test('the new workspace structurally replaces old four-card dashboard',()=>{
+ assert.match(html,/class="operations-stage"/);
+ assert.match(html,/class="operations-prime"/);
+ assert.match(html,/class="operations-details"/);
+ assert.match(html,/class="worklist-filter-shell"/);
+ assert.match(html,/class="workspace-shell"/);
+ assert.match(html,/class="rail-workspace"/);
+ assert.doesNotMatch(html,/class="stat-grid home-stat-grid"/);
+ for(const id of ['epCompletionRate','epCompletionBar','epSectionLabel'])assert.ok(html.includes('id="'+id+'"'),id);
+ assert.match(enterprise,/function renderCompletionMetric\(\)/);
+ assert.match(enterprise,/function observeOperationalMetrics\(\)/);
+});
+test('every business module has a new module heading without modifying its data containers',()=>{
+ const headings=(html.match(/class="module-head"/g)||[]).length;
+ assert.equal(headings,6);
+ for(const id of ['usersGroupsContainer','lookupTabsContainer','lookupEditorContainer','lookupsContainer',
+  'archiveContainer','reportChartContainer','logsContainer','accountPasswordForm'])
+  assert.ok(html.includes('id="'+id+'"'),id);
+});
+test('drag and drop is removed in favor of an accessible file chooser',()=>{
+ assert.match(html,/<button id="invoiceMediaDropzone" type="button"/);
+ assert.ok(!html.includes('انتخاب فایل یا کشیدن به اینجا'));
+ assert.ok(!mediaLogic.includes('bindInvoiceMediaDrop'));
+ assert.ok(!mediaLogic.includes("addEventListener('drop'"));
+ assert.match(media,/invoice-media-dropzone/);
+});
+test('new offline icons are defined for every icon used by the static page',()=>{
+ const available=read('assets/icons/lucide-icons.js');
+ const names=[...new Set([...html.matchAll(/data-portal-icon="([^"]+)"/g)].map(m=>m[1]))];
+ for(const name of names)assert.ok(available.includes("'"+name+"':"),name);
 });
