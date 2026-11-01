@@ -58,3 +58,80 @@ test('no external font or javascript CDN is required by enterprise layer',()=>{
   assert.ok(!/https?:\/\//.test(design.replace(/\/\*[\s\S]*?\*\//g,'')));
   assert.ok(!/https?:\/\//.test(script.replace(/\/\*[\s\S]*?\*\//g,'')));
 });
+
+
+test('enterprise initialization restores settings and theme/sidebar/density buttons respond',()=>{
+  class Node {
+    constructor(){
+      this.attrs={};this.dataset={};this.children=[];this.events={};this.style={};
+      this.textContent='';this.value='';this.set=new Set();
+      this.classList={
+        add:k=>this.set.add(k), remove:k=>this.set.delete(k),
+        contains:k=>this.set.has(k),toggle:(k,value)=>{
+          const enabled=value===undefined?!this.set.has(k):value;
+          if(enabled)this.set.add(k);else this.set.delete(k);
+          return enabled;
+        }
+      };
+    }
+    append(...items){this.children.push(...items)}
+    prepend(...items){this.children.unshift(...items)}
+    insertBefore(node){this.children.unshift(node)}
+    setAttribute(key,value){this.attrs[key]=String(value)}
+    removeAttribute(key){delete this.attrs[key]}
+    addEventListener(event,handler){this.events[event]=handler}
+    querySelector(selector){return selector==='.top-search-wrap'?search:null}
+    click(){this.events.click?.()}
+  }
+  const nodes=[];
+  const instance=()=>{const n=new Node();nodes.push(n);return n};
+  const root=instance(),actions=instance(),side=instance(),auth=instance();
+  const main=instance(),search=instance(),title=instance(),subtitle=instance(),shell=instance(),nav=instance();
+  nav.id='navHomeBtn';nav.classList.add('active-page');
+  const document={
+    readyState:'loading',documentElement:root,events:{},
+    createElement:instance,addEventListener(event,cb){this.events[event]=cb},
+    querySelector(selector){return ({
+      '.top-header .top-actions':actions,'.auth-head':auth,'#appShell .side-menu':side,
+      '.side-menu':side,'#appShell main.table-area':main,
+      '.side-menu .page-nav-btn.active-page':nav
+    })[selector]||null},
+    querySelectorAll(selector){
+      if(selector==='.side-menu .page-nav-btn')return [nav];
+      const id={'[data-enterprise-theme]':'data-enterprise-theme',
+        '[data-enterprise-density]':'data-enterprise-density',
+        '[data-enterprise-sidebar]':'data-enterprise-sidebar'}[selector];
+      return id?nodes.filter(node=>Object.hasOwn(node.attrs,id)):[];
+    },
+    getElementById(id){return ({
+      epPageTitle:title,epPageDescription:subtitle,appShell:shell,globalSearch:search
+    })[id]||null}
+  };
+  const prefs=new Map([
+    ['portal.enterprise.theme','dark'],
+    ['portal.enterprise.density','compact'],
+    ['portal.enterprise.sidebar','collapsed']
+  ]);
+  const storage={getItem:key=>prefs.get(key)||null,setItem:(key,value)=>prefs.set(key,value)};
+  class Observer {observe(){}}
+  assert.doesNotThrow(()=>{
+    vm.runInNewContext(script,{
+      document,window:{matchMedia:()=>({matches:false,addEventListener(){}})},
+      localStorage:storage,MutationObserver:Observer,
+      getComputedStyle:()=>({display:'block'}),Intl,Date,console
+    });
+    document.events.DOMContentLoaded();
+  });
+  assert.equal(root.dataset.theme,'dark');
+  assert.ok(root.classList.contains('ep-density-compact'));
+  assert.ok(root.classList.contains('ep-sidebar-collapsed'));
+  assert.equal(title.textContent,'میز کار');
+  assert.equal(document.querySelectorAll('[data-enterprise-theme]').length,2);
+  document.querySelectorAll('[data-enterprise-theme]')[0].click();
+  document.querySelectorAll('[data-enterprise-density]')[0].click();
+  document.querySelectorAll('[data-enterprise-sidebar]')[0].click();
+  assert.equal(root.dataset.theme,'light');
+  assert.equal(prefs.get('portal.enterprise.theme'),'light');
+  assert.ok(!root.classList.contains('ep-density-compact'));
+  assert.ok(!root.classList.contains('ep-sidebar-collapsed'));
+});
