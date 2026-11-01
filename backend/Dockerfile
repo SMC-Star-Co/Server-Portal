@@ -1,5 +1,5 @@
 FROM node:24-alpine
-RUN apk add --no-cache imagemagick imagemagick-heic imagemagick-jpeg imagemagick-webp libheif
+RUN apk add --no-cache zip
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
