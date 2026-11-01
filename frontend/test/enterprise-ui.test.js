@@ -115,3 +115,32 @@ test('new offline icons are defined for every icon used by the static page',()=>
  const names=[...new Set([...html.matchAll(/data-portal-icon="([^"]+)"/g)].map(m=>m[1]))];
  for(const name of names)assert.ok(available.includes("'"+name+"':"),name);
 });
+
+
+test('the app shell closes before independent user and media dialogs',()=>{
+ const a=html.indexOf('<div id="appShell"');
+ const b=html.indexOf('<div id="userModal"');
+ assert.ok(a>=0&&b>a);
+ const shell=html.slice(a,b);
+ for(const tag of ['div','main','aside','header','section','nav']){
+  const open=(shell.match(new RegExp('<'+tag+'(?:\\s|>)','g'))||[]).length;
+  const close=(shell.match(new RegExp('</'+tag+'>','g'))||[]).length;
+  assert.equal(open,close,'unbalanced '+tag);
+ }
+});
+test('live operational completion metric understands Persian digits and leaves real data intact',()=>{
+ const start=enterprise.indexOf('function renderCompletionMetric(){');
+ const end=enterprise.indexOf('function observeOperationalMetrics(){',start);
+ assert.ok(start>=0&&end>start);
+ const nodes={
+  statTotal:{textContent:'۲۰۰'},statCompleted:{textContent:'۵۰'},
+  epCompletionRate:{textContent:''},
+  epCompletionBar:{style:{},setAttribute(){}}
+ };
+ const fn=new Function('document',enterprise.slice(start,end)+';return renderCompletionMetric;')({
+  getElementById:id=>nodes[id]||null
+ });
+ fn();
+ assert.equal(nodes.epCompletionBar.style.width,'25%');
+ assert.match(nodes.epCompletionRate.textContent,/۲۵/);
+});
