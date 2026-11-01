@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  __test: { isTechnician, parseSerials, canonicalSerial, downloadName, looksLike, extension, storedPath }
+  __test: { isTechnician, parseSerials, canonicalSerial, downloadName, looksLike, extension, storedPath, replacementExtensionMatches }
 } = require('../src/invoice-media');
 
 test('only technician role can upload or delete', () => {
@@ -51,4 +51,11 @@ test('image and video thumbnail names remain inside media directory', () => {
   assert.match(webp, /-thumb\.webp$/);
   assert.match(jpg, /-thumb\.jpg$/);
   assert.throws(() => storedPath('../image-thumb.webp'));
+});
+
+test('replacement preserves generated filename and requires matching extension', () => {
+  assert.equal(replacementExtensionMatches('2M201002KG-01.jpg','new-cpu.jpg'),true);
+  assert.equal(replacementExtensionMatches('40428-02.pdf','latest.pdf'),true);
+  assert.equal(replacementExtensionMatches('40428-02.pdf','latest.docx'),false);
+  assert.equal(replacementExtensionMatches('40428-02.jpg','latest.exe'),false);
 });
