@@ -82,7 +82,7 @@ function updateInvoiceMediaTarget() {
   const prefix = invoiceMedia.uploadScope === 'serial' ? (select?.value || 'SERIAL') : (invoiceMedia.invoice || 'FACTOR');
   example.textContent = prefix + '-01.jpg';
   const serial=select?.value || '';
-  if(invoiceMedia.pendingSerial && invoiceMedia.pendingSerial!==serial && invoiceMedia.selectedFiles.serial.length) {
+  if(invoiceMedia.selectedFiles.serial.length && invoiceMedia.pendingSerial!==serial) {
     invoiceMedia.selectedFiles.serial=[];
     showAppToast('سریال تغییر کرد؛ فایل‌های انتخابی قبلی برای جلوگیری از ثبت اشتباه حذف شدند.');
   }
@@ -126,7 +126,7 @@ function handleInvoiceMediaFileSelection(scope) {
   const incoming = Array.from(input?.files || []);
   if (scope === 'serial') {
     const currentSerial = mediaElement('invoiceMediaSerialSelect')?.value || '';
-    if (invoiceMedia.pendingSerial && invoiceMedia.pendingSerial !== currentSerial) {
+    if (invoiceMedia.selectedFiles.serial.length && invoiceMedia.pendingSerial !== currentSerial) {
       invoiceMedia.selectedFiles.serial = [];
     }
     invoiceMedia.pendingSerial = currentSerial;
