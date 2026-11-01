@@ -8,13 +8,13 @@
   const root=document.documentElement;
   const prefix='portal.enterprise.';
   const NAV={
-    home:['میز کار','نمای کلی فاکتورها و پیگیری سفارش‌ها'],
-    users:['مدیریت کاربران','مدیریت دسترسی‌ها و حساب‌های کاربری'],
-    lookups:['اطلاعات پایه','تنظیم داده‌های مرجع و فهرست‌های سیستم'],
-    archive:['بایگانی','جستجو و بازیابی سوابق فاکتورها'],
-    reports:['گزارش‌های مدیریتی','بررسی عملکرد و شاخص‌های عملیاتی'],
-    logs:['سوابق فعالیت','ردیابی رویدادها و تغییرات ثبت‌شده'],
-    account:['حساب کاربری','مشخصات حساب و تنظیمات امنیتی']
+    home:['مرکز عملیات','فاکتورهای ماه جاری، وضعیت آماده‌سازی و جریان کار','OVERVIEW'],
+    users:['کاربران و دسترسی‌ها','حساب‌های کاربری، نقش‌ها و اختیارات سامانه','PEOPLE'],
+    lookups:['اطلاعات پایه','داده‌های مرجع ثبت و پردازش فاکتورها','MASTER DATA'],
+    archive:['بایگانی فاکتورها','بازیابی و بررسی تاریخچه سفارش‌ها','ARCHIVE'],
+    reports:['گزارش‌ها و تحلیل','شاخص‌های عملکرد و بررسی بازه‌های زمانی','ANALYTICS'],
+    logs:['تاریخچه فعالیت','رخدادها و تغییرات ثبت‌شده کاربران','ACTIVITY LOG'],
+    account:['حساب کاربری','اطلاعات حساب و تنظیمات امنیتی','PROFILE']
   };
   const icons={
     moon:'<path d="M20.985 12.486A9 9 0 0 1 11.514 3.015a9 9 0 1 0 9.47 9.47Z"/>',
@@ -153,6 +153,8 @@
     const desc=document.getElementById('epPageDescription');
     if(title)title.textContent=match[0];
     if(desc)desc.textContent=match[1];
+    const label=document.getElementById('epSectionLabel');
+    if(label)label.textContent=match[2];
     document.querySelectorAll('.side-menu .page-nav-btn').forEach(btn=>{
       const label=btn.querySelector('.nav-label');
       if(label)btn.title=label.textContent.trim();
@@ -161,6 +163,23 @@
     });
     root.classList.remove('ep-mobile-nav-open');
     document.querySelector('[data-enterprise-menu]')?.setAttribute('aria-expanded','false');
+  }
+  function renderCompletionMetric(){
+    const total=parseInt((document.getElementById('statTotal')?.textContent||'').replace(/[^0-9۰-۹٠-٩]/g,'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))),10);
+    const completed=parseInt((document.getElementById('statCompleted')?.textContent||'').replace(/[^0-9۰-۹٠-٩]/g,'').replace(/[۰-۹]/g,d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[٠-٩]/g,d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))),10);
+    const value=document.getElementById('epCompletionRate');
+    const bar=document.getElementById('epCompletionBar');
+    const pct=Number.isFinite(total)&&Number.isFinite(completed)&&total>0?Math.min(100,Math.round(completed/total*100)):0;
+    if(value)value.textContent=Number.isFinite(total)&&total>0?pct.toLocaleString('fa-IR')+'٪':'—';
+    if(bar){bar.style.width=pct+'%';bar.setAttribute('aria-label','نرخ تکمیل '+pct+' درصد');}
+  }
+  function observeOperationalMetrics(){
+    const total=document.getElementById('statTotal');
+    const complete=document.getElementById('statCompleted');
+    if(!total||!complete)return;
+    const observer=new MutationObserver(renderCompletionMetric);
+    for(const target of [total,complete])observer.observe(target,{childList:true,characterData:true,subtree:true});
+    renderCompletionMetric();
   }
   function keyboard(event){
     if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){
@@ -179,7 +198,7 @@
     }
   }
   function initialize(){
-    ensureToolbar();ensurePageContext();updateActiveContext();
+    ensureToolbar();ensurePageContext();updateActiveContext();observeOperationalMetrics();
     const sidebar=document.querySelector('.side-menu');
     if(sidebar){
       const observer=new MutationObserver(updateActiveContext);
