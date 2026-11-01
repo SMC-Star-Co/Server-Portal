@@ -378,110 +378,117 @@
     </div>
 
 
+    <!-- Authentication: bespoke split composition; original form IDs and handlers retained -->
     <div id="loginPage" class="auth-page">
-        <div class="auth-card">
-            <div class="auth-head">
-                <div class="brand-icon brand-logo-box">
-                    <img src="./assets/icons/brand-logo.png" alt="لوگوی ستاره سهیل پارسا" class="brand-logo-image">
-                </div>
-                <div>
-                    <h1 class="brand-title">ستاره سهیل پارسا</h1>
-                    <div class="brand-subtitle">ورود به پورتال</div>
-                </div>
-            </div>
-            <div class="auth-body">
-                <div id="loginError" class="auth-error"></div>
-                <form id="loginForm" class="space-y-4" onsubmit="handleLogin(event)" autocomplete="off" novalidate>
-                    <div class="field">
-                        <label>نام کاربری</label>
-                        <input id="loginUsername" name="portal_login_username" type="text" autocomplete="off" required placeholder="">
+        <div class="auth-frame">
+            <aside class="auth-story" aria-hidden="true">
+                <div class="auth-story-top"><span class="auth-story-monogram">S</span><span>SETARE SOHEIL PARSA</span></div>
+                <div class="auth-story-content">
+                    <span class="auth-eyebrow">BUSINESS OPERATIONS / 01</span>
+                    <h2>یک میز کار.<span>دید کامل.</span></h2>
+                    <p>مدیریت جریان فاکتور، آماده‌سازی سرور، مستندات فنی و تصمیم‌های روزانه در یک محیط سازمانی متمرکز.</p>
+                    <div class="auth-story-grid">
+                        <div class="auth-story-stat"><span>01</span><strong>یکپارچگی عملیات</strong></div>
+                        <div class="auth-story-stat"><span>02</span><strong>شفافیت فرایندها</strong></div>
+                        <div class="auth-story-stat"><span>03</span><strong>دسترسی کنترل‌شده</strong></div>
                     </div>
-                    <div class="field">
-                        <label>رمز عبور</label>
-                        <input id="loginPassword" name="portal_login_password" type="password" autocomplete="new-password" required placeholder="">
-                    </div>
-                    <button id="loginBtn" type="submit" class="primary-submit">ورود</button>
-                </form>
-            </div>
+                </div>
+                <div class="auth-story-bottom"><span>SERVER OPERATIONS PORTAL</span><span>INTERNAL WORKSPACE</span></div>
+            </aside>
+            <main class="auth-card">
+                <div class="auth-head">
+                    <div class="brand-icon brand-logo-box"><img src="./assets/icons/brand-logo.png" alt="لوگوی ستاره سهیل پارسا" class="brand-logo-image"></div>
+                    <div><span class="auth-head-eyebrow">پورتال سازمانی</span><h1 class="brand-title">ستاره سهیل پارسا</h1><div class="brand-subtitle">ورود به فضای کاری</div></div>
+                </div>
+                <div class="auth-body">
+                    <h2 class="auth-welcome">خوش آمدید</h2>
+                    <p class="auth-description">برای ادامه، با حساب سازمانی خود وارد شوید.</p>
+                    <div id="loginError" class="auth-error" role="alert"></div>
+                    <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)" autocomplete="off" novalidate>
+                        <div class="field"><label for="loginUsername">نام کاربری</label><input id="loginUsername" name="portal_login_username" type="text" autocomplete="username" required placeholder="نام کاربری سازمانی"></div>
+                        <div class="field"><label for="loginPassword">رمز عبور</label><input id="loginPassword" name="portal_login_password" type="password" autocomplete="current-password" required placeholder="رمز عبور"></div>
+                        <button id="loginBtn" type="submit" class="primary-submit auth-submit">ورود به سامانه <span aria-hidden="true">←</span></button>
+                    </form>
+                    <p class="auth-help">دسترسی به این سامانه برای کاربران مجاز است.</p>
+                </div>
+            </main>
         </div>
     </div>
 
+    <!-- Executive workspace: independently designed layout, original app IDs preserved -->
     <div id="appShell" class="app-shell" style="display:none;">
         <header class="top-header">
             <div class="top-header-inner">
                 <div class="brand-card">
-                    <div class="brand-icon brand-logo-box">
-                        <img src="./assets/icons/brand-logo.png" alt="لوگوی ستاره سهیل پارسا" class="brand-logo-image">
-                    </div>
-                    <div>
-                        <h1 class="brand-title">ستاره سهیل پارسا</h1>
-                        <div class="brand-subtitle">مدیریت فاکتورها، اولویت‌ها و وضعیت تخصیص کالا</div>
-                    </div>
+                    <div class="brand-icon brand-logo-box"><img src="./assets/icons/brand-logo.png" alt="ستاره سهیل پارسا" class="brand-logo-image"></div>
+                    <div><h1 class="brand-title">ستاره سهیل پارسا</h1><div class="brand-subtitle">مرکز عملیات سرور و فاکتورها</div></div>
                 </div>
-
                 <div class="top-actions">
-                    <div class="top-search-wrap" id="globalSearchWrap">
-                        <input id="globalSearch" class="top-search" type="text" placeholder="جستجو ..." oninput="handleSearch(this.value)">
+                    <div id="globalSearchWrap" class="top-search-wrap">
+                        <span class="top-search-label" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></span>
+                        <input id="globalSearch" class="top-search" type="search" placeholder="جستجوی شماره فاکتور، خریدار، مدل و سریال..." aria-label="جستجوی فاکتورها" oninput="handleSearch(this.value)">
+                        <kbd class="search-hint-key">Ctrl K</kbd>
                     </div>
                     <div class="account-actions">
                         <div id="lastRefreshPill" class="user-pill header-action-box header-refresh-box" title="آخرین بروزرسانی">
-                            <button id="manualRefreshBtn" type="button" class="header-refresh-btn" onclick="handleManualRefresh()" aria-label="بروزرسانی">
+                            <button id="manualRefreshBtn" type="button" class="header-refresh-btn" onclick="handleManualRefresh()" aria-label="بروزرسانی اطلاعات">
                                 <span data-portal-icon="refresh-cw"></span>
-                            </button>
-                            <span class="last-refresh-label">آخرین بروزرسانی</span>
-                            <b id="lastRefreshTime" class="last-refresh-time">--:--:--</b>
+                            </button><span class="last-refresh-label">آخرین همگام‌سازی</span><b id="lastRefreshTime" class="last-refresh-time">--:--:--</b>
                         </div>
                         <div id="currentUserRolePill" class="user-pill header-action-box header-role-box">نقش</div>
                         <div id="currentUserPill" class="user-pill header-action-box header-user-box">کاربر</div>
-                        <button type="button" onclick="logout()" class="soft-danger-btn header-action-box header-logout-btn">خروج</button>
+                        <button type="button" onclick="logout()" class="soft-danger-btn header-action-box header-logout-btn" title="خروج از حساب">خروج</button>
                     </div>
                 </div>
             </div>
         </header>
 
         <div class="dashboard-layout">
-            <aside class="side-menu">
-<button type="button" id="navHomeBtn" onclick="showPage('home')" class="page-nav-btn active-page">
-                    <span>صفحه اصلی</span>
-                    <span class="menu-arrow-icon"><span data-portal-icon="home"></span></span>
-                </button>
-
-                <button type="button" id="navUsersBtn" onclick="showPage('users')" class="page-nav-btn">
-                    <span>مدیریت کاربران</span>
-                    <span class="menu-arrow-icon"><span data-portal-icon="users"></span></span>
-                </button>
-
-                <button type="button" id="navLookupsBtn" onclick="showPage('lookups')" class="page-nav-btn">
-                    <span>مدیریت اطلاعات پایه</span>
-                    <span class="menu-arrow-icon">◇</span>
-                </button>
-
-                <button type="button" id="navArchiveBtn" onclick="showPage('archive')" class="page-nav-btn">
-                    <span>بایگانی</span>
-                    <span class="menu-arrow-icon"><span data-portal-icon="archive"></span></span>
-                </button>
-
-                <button type="button" id="navReportsBtn" onclick="showPage('reports')" class="page-nav-btn">
-                    <span>گزارش ها</span>
-                    <span class="menu-arrow-icon">▣</span>
-                </button>
-
-                <button type="button" id="navLogsBtn" onclick="showPage('logs')" class="page-nav-btn">
-                    <span>فعالیت ها</span>
-                    <span class="menu-arrow-icon"><span data-portal-icon="activity"></span></span>
-                </button>
-
-                <button type="button" id="navAccountBtn" onclick="showPage('account')" class="page-nav-btn">
-                    <span>تنظیمات حساب کاربری</span>
-                    <span class="menu-arrow-icon"><span data-portal-icon="key-round"></span></span>
-                </button>
+            <aside class="side-menu" aria-label="فهرست بخش‌های پورتال">
+                <div class="sidebar-identity"><div class="sidebar-identity-mark">SS</div><div><strong>OPERATIONS</strong><small>MANAGEMENT CONSOLE</small></div></div>
+                <div class="sidebar-section-label">فضای کاری <span>WORKSPACE</span></div>
+                <nav class="sidebar-nav" aria-label="دسترسی اصلی">
+                    <button type="button" id="navHomeBtn" onclick="showPage('home')" class="page-nav-btn active-page"><span class="nav-label">میز کار</span><span class="menu-arrow-icon"><span data-portal-icon="layout-dashboard"></span></span></button>
+                    <button type="button" id="navArchiveBtn" onclick="showPage('archive')" class="page-nav-btn"><span class="nav-label">بایگانی فاکتورها</span><span class="menu-arrow-icon"><span data-portal-icon="archive"></span></span></button>
+                    <button type="button" id="navReportsBtn" onclick="showPage('reports')" class="page-nav-btn"><span class="nav-label">گزارش‌های مدیریتی</span><span class="menu-arrow-icon"><span data-portal-icon="chart-no-axes-combined"></span></span></button>
+                    <button type="button" id="navLogsBtn" onclick="showPage('logs')" class="page-nav-btn"><span class="nav-label">سوابق فعالیت</span><span class="menu-arrow-icon"><span data-portal-icon="activity"></span></span></button>
+                </nav>
+                <div class="sidebar-section-label">مدیریت سامانه <span>ADMINISTRATION</span></div>
+                <nav class="sidebar-nav" aria-label="تنظیمات سازمانی">
+                    <button type="button" id="navUsersBtn" onclick="showPage('users')" class="page-nav-btn"><span class="nav-label">کاربران و دسترسی‌ها</span><span class="menu-arrow-icon"><span data-portal-icon="users"></span></span></button>
+                    <button type="button" id="navLookupsBtn" onclick="showPage('lookups')" class="page-nav-btn"><span class="nav-label">اطلاعات پایه</span><span class="menu-arrow-icon"><span data-portal-icon="database"></span></span></button>
+                    <button type="button" id="navAccountBtn" onclick="showPage('account')" class="page-nav-btn"><span class="nav-label">حساب کاربری</span><span class="menu-arrow-icon"><span data-portal-icon="user-round-cog"></span></span></button>
+                </nav>
+                <div class="sidebar-bottom"><span class="sidebar-status-dot"></span><div><strong>فضای کاری سازمانی</strong><small>Setare Soheil Parsa</small></div></div>
             </aside>
 
             <main class="table-area">
-                <section id="homePage">
+                <div class="ep-page-context">
+                    <div class="ep-page-identity"><div class="enterprise-kicker">WORKSPACE <span>/</span> SERVER OPERATIONS</div><h2 id="epPageTitle">میز کار</h2><p id="epPageDescription">نمای کلی فاکتورها و پیگیری سفارش‌ها</p></div>
+                    <div class="ep-page-actions"><span class="ep-context-date"><span data-portal-icon="calendar-days"></span><span id="epTodayDate"></span></span></div>
+                </div>
+                <section id="homePage" class="workspace-page">
+                    <div class="home-intro"><div><span class="home-intro-eyebrow">OVERVIEW / CURRENT CYCLE</span><h3>وضعیت عملیات در یک نگاه</h3><p>جریان فاکتورها و وضعیت آماده‌سازی سفارش‌ها</p></div><span class="home-intro-accent" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+                    <div class="stat-grid home-stat-grid">
+                        <button type="button" class="stat-card stat-card-all" onclick="setStatusFilter('All')"><span class="stat-card-top"><span class="stat-label">کل فاکتورها</span><span data-portal-icon="files"></span></span><strong id="statTotal" class="stat-value">—</strong><span class="stat-card-foot">تمام وضعیت‌ها</span></button>
+                        <div class="stat-card stat-card-today"><span class="stat-card-top"><span class="stat-label">فاکتورهای امروز</span><span data-portal-icon="calendar-check"></span></span><strong id="statToday" class="stat-value">—</strong><span class="stat-card-foot">امروز</span></div>
+                        <button type="button" class="stat-card stat-card-progress" onclick="setStatusFilter('In-Progress')"><span class="stat-card-top"><span class="stat-label">در حال انجام</span><span data-portal-icon="timer"></span></span><strong id="statProgress" class="stat-value">—</strong><span class="stat-card-foot">نیازمند پیگیری</span></button>
+                        <button type="button" class="stat-card stat-card-done" onclick="setStatusFilter('Completed')"><span class="stat-card-top"><span class="stat-label">تکمیل‌شده</span><span data-portal-icon="check-circle-2"></span></span><strong id="statCompleted" class="stat-value">—</strong><span class="stat-card-foot">آماده تحویل</span></button>
+                    </div>
+                    <div class="home-orders-toolbar">
+                        <div class="home-orders-title"><span class="home-orders-index">01</span><div><h3>فهرست فاکتورها</h3><p>فاکتورهای ماه جاری، به تفکیک تاریخ</p></div></div>
+                        <div class="home-filters" aria-label="فیلتر وضعیت فاکتورها">
+                            <button id="filter-All" type="button" onclick="setStatusFilter('All')" class="side-menu-btn active-filter"><span>همه</span><b id="count-All" class="filter-count">۰</b></button>
+                            <button id="filter-Pending" type="button" onclick="setStatusFilter('Pending')" class="side-menu-btn"><span>در انتظار</span><b id="count-Pending" class="filter-count">۰</b></button>
+                            <button id="filter-Waiting-Goods" type="button" onclick="setStatusFilter('Waiting-Goods')" class="side-menu-btn"><span>انتظار کالا</span><b id="count-Waiting-Goods" class="filter-count">۰</b></button>
+                            <button id="filter-In-Progress" type="button" onclick="setStatusFilter('In-Progress')" class="side-menu-btn"><span>در حال انجام</span><b id="count-In-Progress" class="filter-count">۰</b></button>
+                            <button id="filter-Completed" type="button" onclick="setStatusFilter('Completed')" class="side-menu-btn"><span>تکمیل</span><b id="count-Completed" class="filter-count">۰</b></button>
+                            <button id="filter-Cancelled" type="button" onclick="setStatusFilter('Cancelled')" class="side-menu-btn"><span>لغو شده</span><b id="count-Cancelled" class="filter-count">۰</b></button>
+                            <button id="filter-Returned" type="button" onclick="setStatusFilter('Returned')" class="side-menu-btn"><span>برگشتی</span><b id="count-Returned" class="filter-count">۰</b></button>
+                        </div>
+                    </div>
                     <div id="groupedTableContainer"></div>
                 </section>
-
                 <section id="usersPage" class="hidden">
                     <div id="usersGroupsContainer" class="users-groups-container">
                         <div class="mini-empty-state">در حال دریافت اطلاعات...</div>
