@@ -67,7 +67,8 @@ const ALLOWED_ACTIVITY_ACTIONS = new Set([
   'order.updated',
   'order.deleted',
   'order.media_uploaded',
-  'order.media_deleted'
+  'order.media_deleted',
+  'order.media_replaced'
 ]);
 
 async function writeActivityLog(payload = {}, client = pool) {
