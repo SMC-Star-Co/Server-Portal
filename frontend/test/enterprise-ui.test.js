@@ -41,9 +41,8 @@ test('app stylesheets are brand-new core and media surfaces, not legacy overlay'
  assert.match(media,/completely rewritten for Portal 2\.0/);
  assert.ok(core.length>30000);
  assert.ok(media.length>12000);
- const legacy=read('assets/css/enterprise.css');
- assert.ok(legacy.length<500,'old cascading override removed');
- assert.ok(html.indexOf('./assets/css/enterprise.css')>html.indexOf('./assets/css/app.css'));
+ assert.ok(!fs.existsSync(path.join(root,'assets/css/enterprise.css')),'legacy overlay stylesheet deleted');
+ assert.ok(!html.includes('./assets/css/enterprise.css'),'no cascading override in HTML');
 });
 test('all functions parse and stylesheet blocks balance',()=>{
  for(const p of ['assets/js/app.js','assets/js/invoice-media.js','assets/js/enterprise.js']){
