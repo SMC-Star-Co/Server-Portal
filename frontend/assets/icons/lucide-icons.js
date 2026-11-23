@@ -18,6 +18,8 @@
         'triangle-alert': '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path>',
         'calendar': '<rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4"></path><path d="M8 2v4"></path><path d="M3 10h18"></path>',
         'pin': '<path d="M12 17v5"></path><path d="M5 17h14"></path><path d="M7 3h10l-1 8 3 6H5l3-6-1-8z"></path>',
+        'folder-open': '<path d="M3 6.5A2.5 2.5 0 0 1 5.5 4H10l2.5 2.5H19a2 2 0 0 1 2 2V10"></path><path d="M3 9v9a2 2 0 0 0 2 2h13a2 2 0 0 0 1.9-1.4L22 12H7a2 2 0 0 0-1.9 1.4L3 19"></path>',
+        'cloud-upload': '<path d="M6 19a4.5 4.5 0 0 1-.3-9A6.5 6.5 0 0 1 18 10a4.5 4.5 0 0 1 .5 9"></path><path d="m9 15 3-3 3 3"></path><path d="M12 12v9"></path>',
         'refresh-cw': '<path d="M21 12a9 9 0 0 1-15.5 6.2"></path><path d="M3 12a9 9 0 0 1 15.5-6.2"></path><path d="M18 3v4h-4"></path><path d="M6 21v-4h4"></path>'
     };
 

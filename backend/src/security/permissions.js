@@ -24,6 +24,9 @@ const PERMISSION_CATALOG = [
   { code: 'orders.serials', name: 'مدیریت سریال‌ها', group: 'فاکتورها' },
   { code: 'orders.sales_notes', name: 'مدیریت توضیحات فروشنده', group: 'فاکتورها' },
   { code: 'orders.related', name: 'مدیریت فاکتورهای وابسته', group: 'فاکتورها' },
+  { code: 'media.upload', name: 'بارگذاری فایل در فاکتور و سرور', group: 'مدیریت فایل‌ها' },
+  { code: 'media.edit', name: 'ویرایش نام و جایگزینی فایل', group: 'مدیریت فایل‌ها' },
+  { code: 'media.delete', name: 'حذف فایل‌های بارگذاری‌شده', group: 'مدیریت فایل‌ها' },
   { code: 'archive.view', name: 'مشاهده بایگانی فاکتورها', group: 'بایگانی' },
   { code: 'reports.view', name: 'مشاهده گزارش ها', group: 'گزارش ها' },
   { code: 'logs.view', name: 'مشاهده فعالیت کاربران', group: 'فعالیت ها' },
@@ -52,7 +55,10 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'menus.account': true,
     'orders.view': true,
     'archive.view': true,
-    'account.change_password': true
+    'account.change_password': true,
+    'media.upload': true,
+    'media.edit': true,
+    'media.delete': true
   },
   sales: {
     'menus.home': true,

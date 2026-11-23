@@ -2,6 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ستاره سهیل پارسا</title>
     <link rel="icon" type="image/png" href="./assets/icons/brand-logo.png">
     <link rel="shortcut icon" type="image/png" href="./assets/icons/brand-logo.png">
@@ -838,88 +839,115 @@
         </div>
     </div>
 
-    <div id="invoiceMediaModal" class="modal-overlay nested-modal" aria-label="مدیریت فایل‌های فاکتور">
+    <!-- Scoped file workspace: each order keeps its original server/invoice grouping. -->
+    <div id="invoiceMediaModal" class="modal-overlay nested-modal" aria-label="کتابخانه فایل‌های فاکتور">
         <div class="modal-card portal-modal-card invoice-media-modal-card" onclick="event.stopPropagation()">
             <div class="portal-modal-head invoice-media-head">
                 <div class="portal-modal-title-wrap">
-                    <div class="portal-modal-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7z"></path><path d="M3 10h18"></path></svg></div>
+                    <div class="portal-modal-icon"><span data-portal-icon="folder-open"></span></div>
                     <div>
+                        <div class="invoice-media-eyebrow">پرونده دیجیتال / مستندات</div>
                         <h3 class="portal-modal-title" id="invoiceMediaModalTitle">مدیریت فایل‌های فاکتور</h3>
-                        <div class="portal-modal-subtitle">مستندات فاکتور و پرونده‌های هر سرور، در یک محل</div>
+                        <div class="portal-modal-subtitle">مرور، پیش‌نمایش و دریافت مدارک مرتبط با فاکتور و سریال سرورها</div>
                     </div>
                 </div>
-                <button type="button" onclick="closeInvoiceMediaModal()" class="close-btn" aria-label="بستن">×</button>
+                <div class="invoice-media-head-actions">
+                    <button type="button" id="invoiceMediaQuickUpload" class="invoice-media-quick-upload" onclick="focusInvoiceMediaUpload()" aria-label="افزودن فایل" title="افزودن فایل" hidden>＋ افزودن فایل</button>
+                    <button type="button" class="invoice-media-head-refresh" onclick="refreshInvoiceMedia()" title="دریافت آخرین تغییرات"><span data-portal-icon="refresh-cw"></span> به‌روزرسانی</button>
+                    <button type="button" onclick="closeInvoiceMediaModal()" class="close-btn" aria-label="بستن">×</button>
+                </div>
+            </div>
+            <div class="invoice-media-stat-strip" aria-label="خلاصه پرونده">
+                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">▤</span><div><strong id="invoiceMediaTotalCount">۰</strong><small>کل فایل‌ها</small></div></div>
+                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">◈</span><div><strong id="invoiceMediaServerTotal">۰</strong><small>مدارک سرورها</small></div></div>
+                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">▧</span><div><strong id="invoiceMediaInvoiceTotal">۰</strong><small>مدارک فاکتور</small></div></div>
+                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">⬡</span><div><strong id="invoiceMediaStorageTotal">۰ KB</strong><small>حجم فایل‌ها</small></div></div>
             </div>
             <div class="portal-modal-body invoice-media-modal-body">
-                <section class="invoice-media-composer" id="invoiceMediaUploader" aria-label="افزودن فایل" hidden>
+                <section class="invoice-media-composer" id="invoiceMediaUploader" aria-label="بارگذاری مدارک" hidden>
                     <div class="invoice-media-panel-heading">
-                        <strong>افزودن فایل</strong>
-                        <span class="invoice-media-cap">حداکثر ۵۰۰ مگابایت / فایل</span>
+                        <div><span class="invoice-media-section-overline">افزودن مستندات</span><strong>بارگذاری فایل جدید</strong></div>
+                        <span class="invoice-media-cap">حداکثر ۵۰۰ MB</span>
                     </div>
-                    <div class="invoice-media-tabbar" role="group" aria-label="محل ذخیره فایل">
-                        <button type="button" id="invoiceMediaScopeSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaUploadScope('serial')">فایل سرور</button>
-                        <button type="button" id="invoiceMediaScopeInvoice" class="invoice-media-tab" onclick="setInvoiceMediaUploadScope('invoice')">فایل فاکتور</button>
+                    <div class="invoice-media-tabbar" role="group" aria-label="دسته فایل">
+                        <button type="button" id="invoiceMediaScopeSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaUploadScope('serial')">مربوط به سرور</button>
+                        <button type="button" id="invoiceMediaScopeInvoice" class="invoice-media-tab" onclick="setInvoiceMediaUploadScope('invoice')">مربوط به فاکتور</button>
                     </div>
-                    <div id="invoiceMediaInvoicePanel" hidden>
-                        <div class="invoice-media-context">فایل‌ها با شماره همین فاکتور نام‌گذاری می‌شوند.</div>
-                    </div>
+                    <div id="invoiceMediaInvoicePanel" hidden><p class="invoice-media-context">برای اسناد عمومی همین فاکتور؛ بدون نیاز به انتخاب سریال.</p></div>
                     <div id="invoiceMediaSerialPanel">
-                        <label class="invoice-media-label" for="invoiceMediaSerialSelect">سریال سرور</label>
+                        <label class="invoice-media-label" for="invoiceMediaSerialSelect">سریال سرور مقصد</label>
                         <select id="invoiceMediaSerialSelect" onchange="updateInvoiceMediaTarget()"></select>
-                        <div class="invoice-media-context">سریال‌ها از بخش «مدیریت سریال‌ها» خوانده می‌شوند.</div>
+                        <p class="invoice-media-context">مدارک زیر سریال انتخاب‌شده دسته‌بندی می‌شوند.</p>
                     </div>
                     <div id="invoiceMediaDropzone" class="invoice-media-dropzone" role="button" tabindex="0" onclick="chooseInvoiceMediaFiles()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();chooseInvoiceMediaFiles()}">
-                        <div class="invoice-media-drop-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17a4 4 0 0 1-1-7.8 6 6 0 0 1 11.6 1.7A3.5 3.5 0 0 1 18 18"></path><path d="M12 12v9m-4-5 4-4 4 4"></path></svg></div>
-                        <strong>انتخاب فایل یا کشیدن به اینجا</strong>
-                        <small>عکس، ویدیو، PDF و اسناد Office</small>
-                        <span class="invoice-media-browse">انتخاب فایل‌ها</span>
+                        <div class="invoice-media-drop-icon"><span data-portal-icon="cloud-upload"></span></div>
+                        <strong>فایل‌ها را اینجا رها کنید</strong>
+                        <small>یا برای انتخاب از دستگاه کلیک کنید</small>
+                        <span class="invoice-media-browse">انتخاب فایل‌ها <span aria-hidden="true">＋</span></span>
+                        <small class="invoice-media-drop-hint">تصویر، ویدیو، PDF، Word، Excel و سایر اسناد مجاز</small>
                     </div>
                     <input type="file" id="invoiceMediaInvoiceFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
                     <input type="file" id="invoiceMediaSerialFiles" multiple hidden accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="updateInvoiceMediaSelection()">
                     <div id="invoiceMediaSelection" class="invoice-media-selection" aria-live="polite">
-                        <div class="invoice-media-selection-top">
-                            <strong>فایل‌های آماده آپلود</strong>
-                            <span id="invoiceMediaSelectionSummary">هنوز فایلی انتخاب نشده است.</span>
-                        </div>
+                        <div class="invoice-media-selection-top"><strong>صف آپلود</strong><span id="invoiceMediaSelectionSummary">فایلی انتخاب نشده است.</span></div>
                         <div id="invoiceMediaPendingList" class="invoice-media-pending-list"></div>
                     </div>
-                    <div class="invoice-media-preview-name">نمونه نام ذخیره‌شده: <b id="invoiceMediaNameSample"></b></div>
-                    <button type="button" id="invoiceMediaUploadButton" class="primary-submit invoice-media-upload-button" onclick="uploadInvoiceMedia()" disabled>آپلود فایل‌های انتخاب‌شده</button>
+                    <div class="invoice-media-preview-name">الگوی نام دریافت: <b id="invoiceMediaNameSample"></b></div>
+                    <button type="button" id="invoiceMediaUploadButton" class="primary-submit invoice-media-upload-button" onclick="uploadInvoiceMedia()" disabled>شروع بارگذاری</button>
+                    <div id="invoiceMediaProgressWrap" class="invoice-media-progress-wrap" hidden>
+                        <div class="invoice-media-progress-track"><div id="invoiceMediaProgressBar"></div></div>
+                        <button type="button" id="invoiceMediaAbortButton" class="invoice-media-cancel" onclick="cancelInvoiceMediaUpload()">لغو آپلود</button>
+                    </div>
                     <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
                 </section>
-                <section class="invoice-media-browser" aria-label="مرور و دریافت فایل‌ها">
+                <section id="invoiceMediaBrowser" class="invoice-media-browser" aria-label="جست‌وجو و مشاهده فایل‌ها">
                     <div class="invoice-media-browser-top">
-                        <div>
-                            <strong>فایل‌های ثبت‌شده</strong>
-                            <div id="invoiceMediaSummary" class="invoice-media-muted">در حال دریافت اطلاعات...</div>
-                        </div>
-                        <button type="button" class="invoice-media-refresh" onclick="refreshInvoiceMedia()" title="به‌روزرسانی">↻</button>
+                        <div><span class="invoice-media-section-overline">فایل‌های این پرونده</span><strong>کتابخانه مستندات</strong><p id="invoiceMediaSummary" class="invoice-media-muted">در حال دریافت اطلاعات...</p></div>
+                        <span id="invoiceMediaPermissionHint" class="invoice-media-readonly" hidden>حالت مشاهده</span>
                     </div>
-                    <div class="invoice-media-tabbar invoice-media-view-tabs" role="group" aria-label="نوع فایل‌ها">
-                        <button type="button" id="invoiceMediaViewSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaView('serial')">فایل‌های سرورها <span id="invoiceMediaSerialCount">۰</span></button>
-                        <button type="button" id="invoiceMediaViewInvoice" class="invoice-media-tab" onclick="setInvoiceMediaView('invoice')">فایل‌های فاکتور <span id="invoiceMediaInvoiceCount">۰</span></button>
+                    <div class="invoice-media-tabbar invoice-media-view-tabs" role="group" aria-label="محل فایل‌ها">
+                        <button type="button" id="invoiceMediaViewSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaView('serial')">سرورها <span id="invoiceMediaSerialCount">۰</span></button>
+                        <button type="button" id="invoiceMediaViewInvoice" class="invoice-media-tab" onclick="setInvoiceMediaView('invoice')">فاکتور <span id="invoiceMediaInvoiceCount">۰</span></button>
                     </div>
+                    <div class="invoice-media-toolbar">
+                        <label class="invoice-media-search-wrap" for="invoiceMediaSearch"><span aria-hidden="true">⌕</span><input id="invoiceMediaSearch" type="search" placeholder="جست‌وجو در نام، سریال یا آپلودکننده..." oninput="updateInvoiceMediaFilters()" autocomplete="off"></label>
+                        <label class="invoice-media-select-wrap"><span>نوع فایل</span><select id="invoiceMediaTypeFilter" onchange="updateInvoiceMediaFilters()"><option value="all">همه</option><option value="image">تصاویر</option><option value="video">ویدیو</option><option value="document">اسناد</option></select></label>
+                        <label class="invoice-media-select-wrap"><span>مرتب‌سازی</span><select id="invoiceMediaSort" onchange="updateInvoiceMediaFilters()"><option value="newest">جدیدترین</option><option value="oldest">قدیمی‌ترین</option><option value="name">نام فایل</option><option value="size">حجم بیشتر</option></select></label>
+                        <div class="invoice-media-layout-switch" role="group" aria-label="شیوه نمایش"><button type="button" id="invoiceMediaGridButton" class="is-active" onclick="setInvoiceMediaLayout('grid')" title="نمای شبکه‌ای" aria-label="نمای شبکه‌ای">▦</button><button type="button" id="invoiceMediaListButton" onclick="setInvoiceMediaLayout('list')" title="نمای فهرستی" aria-label="نمای فهرستی">☰</button></div>
+                    </div>
+                    <div class="invoice-media-results-row"><span id="invoiceMediaFilteredCount">در حال بارگذاری...</span><button type="button" id="invoiceMediaClearFilters" onclick="clearInvoiceMediaFilters()" hidden>پاک‌کردن فیلترها ×</button></div>
                     <div id="invoiceMediaInvoiceView" hidden>
-                        <div class="invoice-media-view-heading">
-                            <span>اسناد و تصاویر فاکتور</span>
-                            <button type="button" id="invoiceMediaInvoiceDownloadAll" class="secondary-btn" hidden onclick="downloadInvoiceMediaGroup('invoice')">دریافت همه (ZIP)</button>
-                        </div>
+                        <div class="invoice-media-view-heading"><span>اسناد عمومی فاکتور</span><button type="button" id="invoiceMediaInvoiceDownloadAll" class="secondary-btn" hidden onclick="downloadInvoiceMediaGroup('invoice')">دریافت همه (ZIP)</button></div>
                         <div id="invoiceMediaInvoiceList" class="invoice-media-list"></div>
                     </div>
                     <div id="invoiceMediaSerialView">
-                        <div class="invoice-media-view-heading">
-                            <span>سرورها <small class="invoice-media-view-note">به ترتیب ثبت سریال در فاکتور</small></span>
-                        </div>
+                        <div class="invoice-media-view-heading"><span>پرونده سرورها <small class="invoice-media-view-note">به ترتیب ثبت سریال</small></span></div>
                         <div id="invoiceMediaSerialGroups" class="invoice-media-serial-groups"></div>
                     </div>
                 </section>
             </div>
             <div class="portal-modal-footer invoice-media-modal-footer">
-                <span>فایل اصلی بدون تغییر کیفیت یا فشرده‌سازی ذخیره می‌شود.</span>
-                <button type="button" class="secondary-btn" onclick="closeInvoiceMediaModal()">بستن</button>
+                <span><span class="invoice-media-safety-dot">●</span> نسخه اصلی فایل‌ها بدون کاهش کیفیت ذخیره می‌شود.</span>
+                <button type="button" class="secondary-btn" onclick="closeInvoiceMediaModal()">بستن پرونده</button>
             </div>
         </div>
     </div>
+
+    <dialog id="invoiceMediaEditModal" class="invoice-media-edit-dialog" aria-label="ویرایش فایل">
+        <div class="invoice-media-edit-head"><div><small>تنظیمات فایل</small><h3>ویرایش مستند</h3></div><button type="button" class="close-btn" onclick="closeInvoiceMediaEdit()" aria-label="بستن">×</button></div>
+        <form id="invoiceMediaEditForm" onsubmit="event.preventDefault();saveInvoiceMediaEdit()">
+            <div class="invoice-media-edit-body">
+                <label for="invoiceMediaEditName">نام نمایشی فایل</label>
+                <input id="invoiceMediaEditName" type="text" maxlength="180" required dir="auto" placeholder="مثلاً گزارش بررسی سرور.pdf">
+                <p>برای تغییر نام، پسوند فایل را ثابت نگه دارید. نام دانلود خودکار بر اساس فاکتور یا سریال تنظیم می‌شود.</p>
+                <label for="invoiceMediaReplaceInput" class="invoice-media-replace-label">جایگزین‌کردن فایل اصلی (اختیاری)</label>
+                <input id="invoiceMediaReplaceInput" type="file" accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="onInvoiceMediaReplacementSelected()">
+                <div id="invoiceMediaEditHelp" class="invoice-media-edit-help">بدون انتخاب فایل جدید، فقط نام نمایشی اصلاح می‌شود.</div>
+                <div id="invoiceMediaEditProgress" class="invoice-media-edit-progress" aria-live="polite"></div>
+            </div>
+            <div class="invoice-media-edit-footer"><button type="button" class="secondary-btn" onclick="closeInvoiceMediaEdit()">انصراف</button><button type="submit" id="invoiceMediaEditSave" class="primary-submit">ذخیره تغییرات</button></div>
+        </form>
+    </dialog>
 
     <dialog id="invoiceMediaPreview" class="invoice-media-preview" aria-label="پیش‌نمایش فایل فنی" onclose="closeInvoiceMediaPreview()">
         <div class="invoice-media-preview-header">

@@ -67,6 +67,7 @@ const ALLOWED_ACTIVITY_ACTIONS = new Set([
   'order.updated',
   'order.deleted',
   'order.media_uploaded',
+  'order.media_edited',
   'order.media_deleted'
 ]);
 

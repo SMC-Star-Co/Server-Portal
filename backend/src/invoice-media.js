@@ -32,8 +32,8 @@ const TYPE_MAP = Object.freeze({
 const ZIP_TYPES = new Set(['docx','xlsx','pptx','odt','ods']);
 const OLE_TYPES = new Set(['doc','xls','ppt']);
 const TEXT_TYPES = new Set(['txt','csv','log','rtf']);
-function isTechnician(user) {
-  return Array.isArray(user?.roles) ? user.roles.includes('technician') : user?.role === 'technician';
+function canMedia(user, action) {
+  return Boolean(user?.permissions?.['media.' + action]);
 }
 function validId(value) {
   const n = Number(value);
@@ -44,6 +44,11 @@ function parseSerials(value) {
 }
 function sanitizeName(name) {
   return String(name || 'file').replace(/[\x00-\x1f\x7f\/\\]/g, '_').slice(0, 180) || 'file';
+}
+function validDisplayName(value, expectedExtension) {
+  const name = String(value || '').trim();
+  return name && name.length <= 180 && name === sanitizeName(name) &&
+    !/^\.+$/.test(name) && extension(name) === expectedExtension ? name : '';
 }
 function extension(name) {
   return String(name).toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
@@ -171,8 +176,8 @@ async function generateMediaThumbnail(row,pool) {
       const file=await fsp.stat(destination);
       if(!file.size || file.size>3*1024*1024)throw new Error('Invalid thumbnail size');
       const updated=await pool.query(
-        'UPDATE invoice_media SET thumbnail_name=$1, thumbnail_bytes=$2 WHERE id=$3 AND order_id=$4 RETURNING thumbnail_name',
-        [candidate,file.size,row.id,row.order_id]);
+        'UPDATE invoice_media SET thumbnail_name=$1, thumbnail_bytes=$2 WHERE id=$3 AND order_id=$4 AND stored_name=$5 RETURNING thumbnail_name',
+        [candidate,file.size,row.id,row.order_id,row.stored_name]);
       if(!updated.rowCount) {
         await fsp.unlink(destination).catch(()=>{});
         return null;
@@ -195,19 +200,20 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   // Keep the request as a stream: a 500-MB upload must not be buffered in Node memory.
   fastify.addContentTypeParser('application/octet-stream', (request, payload, done) => done(null,payload));
   fastify.get('/api/orders/:id/media', async(request,reply) => {
-    if(!requirePermission(request,reply,'orders.view'))return;
+    // Every authenticated user category may browse/download invoice files.
     const id=validId(request.params.id);
     if(!id)return fail(reply,400,'شناسه فاکتور معتبر نیست.');
     const order=await pool.query('SELECT invoice_number,serials FROM orders WHERE id=$1',[id]);
     if(!order.rowCount)return fail(reply,404,'فاکتور یافت نشد.');
     const result=await attachmentsForOrder(pool,id);
     return {invoice_number:order.rows[0].invoice_number,serials:parseSerials(order.rows[0].serials),
-      files:result.rows,can_manage:isTechnician(request.user)};
+      files:result.rows,can_upload:canMedia(request.user,'upload'),
+      can_edit:canMedia(request.user,'edit'),can_delete:canMedia(request.user,'delete'),
+      can_manage:canMedia(request.user,'upload')||canMedia(request.user,'edit')||canMedia(request.user,'delete')};
   });
 
   fastify.post('/api/orders/:id/media',{bodyLimit:MAX_BYTES},async(request,reply) => {
-    if(!requirePermission(request,reply,'orders.view'))return;
-    if(!isTechnician(request.user))return fail(reply,403,'فقط تکنسین فنی اجازه آپلود دارد.');
+    if(!requirePermission(request,reply,'media.upload'))return;
     const id=validId(request.params.id);
     if(!id)return fail(reply,400,'شناسه فاکتور معتبر نیست.');
     const scope=request.headers['x-media-scope']==='serial'?'serial':'invoice';
@@ -244,7 +250,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       const sourceHash=hash.digest('hex');
       if(!looksLike(ext,header))return fail(reply,415,'محتوای فایل با نوع انتخاب‌شده مطابقت ندارد.');
       const client=await pool.connect();
-      let saved=false;
+      let saved=false,committed=false;
       try{
         await client.query('BEGIN');
         await client.query('SELECT pg_advisory_xact_lock($1)',[472901]);
@@ -265,7 +271,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         saved=true;
         const inserted=await client.query('INSERT INTO invoice_media (order_id,stored_name,original_name,download_name,mime_type,original_bytes,stored_bytes,source_hash,compression_mode,uploaded_by,uploader_name,media_scope,serial_number,sequence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',
           [id,finalName,original,name,mime,bytes,bytes,sourceHash,'original',request.user.id,request.user.full_name||request.user.username,scope,serial,seq]);
-        await client.query('COMMIT');
+        await client.query('COMMIT');committed=true;
         await writeActivityLog({request,action_type:'order.media_uploaded',entity_type:'order',entity_id:String(id),
           invoice_number:current.rows[0].invoice_number,message:'فایل فنی به فاکتور اضافه شد.',
           details:{filename:name,scope,serial,stored_bytes:bytes}});
@@ -273,7 +279,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         return {success:true,media_id:inserted.rows[0].id,download_name:name,stored_bytes:bytes};
       }catch(e){
         await client.query('ROLLBACK').catch(()=>{});
-        if(saved)await fsp.unlink(storedPath(finalName)).catch(()=>{});
+        if(saved&&!committed)await fsp.unlink(storedPath(finalName)).catch(()=>{});
         if(e.message==='QUOTA_EXCEEDED')return fail(reply,413,'سهمیه فایل‌های فنی تکمیل شده است.');
         if(e.message==='SERIAL_MISSING')return fail(reply,409,'این سریال دیگر در فاکتور موجود نیست.');
         throw e;
@@ -286,7 +292,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   });
 
   fastify.get('/api/orders/:id/media/:mediaId/thumbnail',async(request,reply)=>{
-    if(!requirePermission(request,reply,'orders.view'))return;
     const orderId=validId(request.params.id),mediaId=validId(request.params.mediaId);
     if(!orderId||!mediaId)return fail(reply,400,'شناسه نامعتبر است.');
     const found=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[orderId,mediaId]);
@@ -300,9 +305,109 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       .header('X-Content-Type-Options','nosniff').send(fs.createReadStream(storedPath(name)));
   });
 
+  // Rename the user-facing label without touching original file bytes or standardized download names.
+  fastify.patch('/api/orders/:id/media/:mediaId',async(request,reply)=>{
+    if(!requirePermission(request,reply,'media.edit'))return;
+    const id=validId(request.params.id),mid=validId(request.params.mediaId);
+    if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
+    const current=await pool.query('SELECT original_name,download_name FROM invoice_media WHERE id=$1 AND order_id=$2',[mid,id]);
+    if(!current.rowCount)return fail(reply,404,'فایل یافت نشد.');
+    const wanted=validDisplayName(request.body?.original_name,extension(current.rows[0].download_name||current.rows[0].original_name));
+    if(!wanted)return fail(reply,400,'نام فایل معتبر نیست؛ پسوند فایل را تغییر ندهید (حداکثر ۱۸۰ نویسه).');
+    const saved=await pool.query('UPDATE invoice_media SET original_name=$1 WHERE id=$2 AND order_id=$3 RETURNING id,original_name',[wanted,mid,id]);
+    if(!saved.rowCount)return fail(reply,404,'فایل یافت نشد.');
+    const order=await pool.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
+    await writeActivityLog({request,action_type:'order.media_edited',entity_type:'order',entity_id:String(id),
+      invoice_number:order.rows[0]?.invoice_number,message:'نام نمایشی فایل اصلاح شد.',
+      details:{media_id:mid,before:current.rows[0].original_name,after:wanted}});
+    broadcastRealtimeEvent('orders.changed',{order_id:id});
+    return {success:true,media:saved.rows[0]};
+  });
+
+  // Replace the underlying contents in-place logically (stable media ID and group).
+  // Stream into a new path and atomically switch the DB record, then remove old bytes.
+  fastify.put('/api/orders/:id/media/:mediaId/content',{bodyLimit:MAX_BYTES},async(request,reply)=>{
+    if(!requirePermission(request,reply,'media.edit'))return;
+    const id=validId(request.params.id),mid=validId(request.params.mediaId);
+    if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
+    const initial=await pool.query('SELECT id FROM invoice_media WHERE id=$1 AND order_id=$2',[mid,id]);
+    if(!initial.rowCount)return fail(reply,404,'فایل یافت نشد.');
+    let uploadedName='';
+    try{uploadedName=decodeURIComponent(String(request.headers['x-file-name']||''));}
+    catch{return fail(reply,400,'نام فایل نامعتبر است.');}
+    const ext=extension(uploadedName),mime=TYPE_MAP[ext];
+    if(!mime||!validDisplayName(uploadedName,ext))return fail(reply,415,'فرمت یا نام فایل جایگزین معتبر نیست.');
+    let displayName=uploadedName;
+    if(request.headers['x-display-name']){
+      try{displayName=decodeURIComponent(String(request.headers['x-display-name']));}
+      catch{return fail(reply,400,'نام نمایشی نامعتبر است.');}
+      if(!validDisplayName(displayName,ext))return fail(reply,400,'نام نمایشی باید با پسوند فایل جدید مطابقت داشته باشد.');
+    }
+    const contentLength=Number(request.headers['content-length']||0);
+    if(Number.isFinite(contentLength)&&contentLength>MAX_BYTES)return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
+    await fsp.mkdir(MEDIA_ROOT,{recursive:true});
+    const disk=await fsp.statfs(MEDIA_ROOT);
+    if(Number(disk.bavail)*Number(disk.bsize)<RESERVE_BYTES+Math.max(contentLength,MAX_BYTES))
+      return fail(reply,507,'فضای آزاد دیسک کافی نیست.');
+    const uid=randomUUID(),temp=path.join(MEDIA_ROOT,'.'+uid+'.upload'),newStored=uid+'.'+ext;
+    let bytes=0,signature=Buffer.alloc(0);
+    const hash=createHash('sha256');
+    const monitor=new Transform({transform(chunk,encoding,callback){
+      bytes+=chunk.length;
+      if(bytes>MAX_BYTES)return callback(new Error('FILE_TOO_LARGE'));
+      if(signature.length<32)signature=Buffer.concat([signature,chunk.subarray(0,32-signature.length)]);
+      hash.update(chunk);callback(null,chunk);
+    }});
+    try{
+      await pipeline(request.body,monitor,fs.createWriteStream(temp,{flags:'wx',mode:0o600}));
+      if(bytes<1)return fail(reply,400,'فایل خالی است.');
+      if(!looksLike(ext,signature))return fail(reply,415,'محتوای فایل با پسوند آن مطابقت ندارد.');
+      const sourceHash=hash.digest('hex'),client=await pool.connect();
+      let moved=false,committed=false;
+      try{
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock($1)',[472901]);
+        const old=await client.query('SELECT * FROM invoice_media WHERE id=$1 AND order_id=$2 FOR UPDATE',[mid,id]);
+        if(!old.rowCount){await client.query('ROLLBACK');return fail(reply,404,'فایل یافت نشد.');}
+        const before=old.rows[0];
+        const duplicate=await client.query('SELECT id FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 AND source_hash=$4 AND id<>$5 LIMIT 1',
+          [id,before.media_scope,before.serial_number||'',sourceHash,mid]);
+        if(duplicate.rowCount){await client.query('ROLLBACK');return fail(reply,409,'این فایل قبلاً در همین بخش آپلود شده است.');}
+        const usage=await client.query('SELECT COALESCE(SUM(stored_bytes+thumbnail_bytes),0)::bigint AS total FROM invoice_media');
+        if(Number(usage.rows[0].total)-Number(before.stored_bytes)-Number(before.thumbnail_bytes||0)+bytes>MEDIA_QUOTA){
+          await client.query('ROLLBACK');return fail(reply,413,'سهمیه ذخیره فایل‌ها تکمیل شده است.');
+        }
+        const order=await client.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
+        if(!order.rowCount){await client.query('ROLLBACK');return fail(reply,404,'فاکتور پیدا نشد.');}
+        const download=Number(before.sequence_number)>0
+          ? downloadName(order.rows[0].invoice_number,before.media_scope,before.serial_number,before.sequence_number,ext)
+          : sanitizeName(String(before.download_name||before.original_name).replace(/\.[a-z0-9]+$/i,'')+'.'+ext);
+        await fsp.rename(temp,storedPath(newStored));moved=true;
+        await client.query(`UPDATE invoice_media SET stored_name=$1,original_name=$2,download_name=$3,mime_type=$4,
+          original_bytes=$5,stored_bytes=$5,source_hash=$6,thumbnail_name=NULL,thumbnail_bytes=0,compression_mode='original',
+          uploaded_by=$7,uploader_name=$8,created_at=NOW() WHERE id=$9 AND order_id=$10`,
+          [newStored,displayName,download,mime,bytes,sourceHash,request.user.id,request.user.full_name||request.user.username,mid,id]);
+        await client.query('COMMIT');committed=true;
+        await cleanMedia([before]);
+        await writeActivityLog({request,action_type:'order.media_edited',entity_type:'order',entity_id:String(id),
+          invoice_number:order.rows[0].invoice_number,message:'محتوای فایل جایگزین شد.',
+          details:{media_id:mid,old_filename:before.download_name,new_filename:download,stored_bytes:bytes}});
+        broadcastRealtimeEvent('orders.changed',{order_id:id});
+        return {success:true,media_id:mid,download_name:download,stored_bytes:bytes};
+      }catch(error){
+        await client.query('ROLLBACK').catch(()=>{});
+        if(moved&&!committed)await fsp.unlink(storedPath(newStored)).catch(()=>{});
+        throw error;
+      }finally{client.release();}
+    }catch(error){
+      request.log.error(error);
+      if(error.message==='FILE_TOO_LARGE')return fail(reply,413,'حداکثر حجم هر فایل ۵۰۰ مگابایت است.');
+      return fail(reply,500,'جایگزینی فایل انجام نشد.');
+    }finally{await fsp.unlink(temp).catch(()=>{});}
+  });
+
   fastify.delete('/api/orders/:id/media/:mediaId',async(request,reply)=>{
-    if(!requirePermission(request,reply,'orders.view'))return;
-    if(!isTechnician(request.user))return fail(reply,403,'فقط تکنسین فنی اجازه حذف دارد.');
+    if(!requirePermission(request,reply,'media.delete'))return;
     const id=validId(request.params.id),mid=validId(request.params.mediaId);
     if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
     const result=await pool.query('DELETE FROM invoice_media WHERE id=$1 AND order_id=$2 RETURNING *',[mid,id]);
@@ -316,7 +421,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   });
 
   fastify.post('/api/orders/:id/media/ticket',async(request,reply)=>{
-    if(!requirePermission(request,reply,'orders.view'))return;
     const id=validId(request.params.id);
     if(!id)return fail(reply,400,'شناسه فاکتور نامعتبر است.');
     const order=await pool.query('SELECT serials FROM orders WHERE id=$1',[id]);
@@ -331,7 +435,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       payload={kind:'file',orderId:id,fileId,inline:body.inline===true};
     }else if(body.kind==='zip'&&(body.scope==='invoice'||body.scope==='serial')){
       const scope=body.scope,serial=scope==='serial'?canonicalSerial(body.serial_number):null;
-      if(scope==='serial'&&(!serial||!parseSerials(order.rows[0].serials).includes(serial)))return fail(reply,400,'سریال انتخاب‌شده معتبر نیست.');
+      if(scope==='serial'&&!serial)return fail(reply,400,'سریال انتخاب‌شده معتبر نیست.');
       const found=await pool.query('SELECT 1 FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 LIMIT 1',[id,scope,serial||'']);
       if(!found.rowCount)return fail(reply,404,'فایلی برای دانلود وجود ندارد.');
       payload={kind:'zip',orderId:id,scope,serial};
@@ -387,4 +491,4 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     }
   });
 }
-module.exports={registerInvoiceMedia,initMediaTable,cleanMedia,__test:{isTechnician,parseSerials,canonicalSerial,downloadName,looksLike,extension,storedPath}};
+module.exports={registerInvoiceMedia,initMediaTable,cleanMedia,__test:{canMedia,validDisplayName,parseSerials,canonicalSerial,downloadName,looksLike,extension,storedPath}};
