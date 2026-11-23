@@ -194,3 +194,63 @@ dialog.invoice-media-preview::backdrop{background:rgba(4,11,24,.88)}
  .invoice-media-select-wrap{flex:1;min-width:112px}.invoice-media-layout-switch{flex:none}
  .invoice-media-edit-footer button{min-width:90px}
 }
+
+/* Compact file manager (2026-11-23): reduced card chrome and thumbnail footprint.
+   User-facing sorting, filters and KPI strip were removed from the HTML. */
+.invoice-media-modal-card{width:min(1220px,calc(100vw - 28px));max-width:1220px;}
+.invoice-media-modal-card .invoice-media-head{padding:14px 20px 13px;}
+.invoice-media-modal-card .portal-modal-icon{display:grid!important;place-items:center;flex:none;}
+.invoice-media-modal-card .portal-modal-icon svg{width:25px;height:25px;display:block;}
+.invoice-media-modal-card .invoice-media-modal-body{grid-template-columns:minmax(250px,280px) minmax(0,1fr);}
+.invoice-media-browser{padding:16px 18px 24px;}
+.invoice-media-readonly{display:inline-flex;align-items:center;margin-bottom:10px;}
+.invoice-media-readonly[hidden]{display:none!important;}
+.invoice-media-view-tabs{margin-bottom:12px;}
+.invoice-media-view-heading{margin:0 0 9px;}
+.invoice-media-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
+.invoice-media-file-card{border-radius:10px;box-shadow:none;}
+.invoice-media-file-thumb{height:86px;min-height:0;max-height:86px;aspect-ratio:auto;width:100%;}
+.invoice-media-ext-tile{width:47px;height:53px;gap:2px;border-radius:8px;}
+.invoice-media-ext-tile span{font-size:13px;}
+.invoice-media-ext-tile small{font-size:9px;}
+.invoice-media-image-placeholder{font-size:24px;}
+.invoice-media-play{width:30px;height:30px;font-size:11px;}
+.invoice-media-thumb-tag{top:5px;right:5px;padding:2px 5px;font-size:9px;}
+.invoice-media-file-meta{padding:8px 8px 6px;gap:2px;}
+.invoice-media-file-name{font-size:11px;}
+.invoice-media-file-download-name{font-size:9px;}
+.invoice-media-file-detail{font-size:9px;margin-top:1px;}
+.invoice-media-uploaded-by{font-size:9px;}
+.invoice-media-file-actions{gap:4px;padding:6px 7px 8px;margin:0;}
+.invoice-media-file-actions button{font-size:9px;padding:5px 7px;}
+.invoice-media-serial-groups{gap:10px;}
+.invoice-media-serial-selector{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+.invoice-media-serial-chip{min-width:0;min-height:38px;display:flex;align-items:center;justify-content:space-between;gap:5px;border-radius:8px;padding:6px 8px;}
+.invoice-media-serial-chip strong{display:block;grid-column:auto;flex:1;min-width:0;font-size:11px;font-weight:850;text-align:start;}
+.invoice-media-serial-total{grid-column:auto;flex:none;min-width:0;padding:2px 5px;font-size:9px;white-space:nowrap;}
+.invoice-media-serial-file-panel{padding:12px;border-radius:10px;}
+.invoice-media-serial-file-header{margin-bottom:9px;}
+.invoice-media-empty{min-height:125px;padding:15px;}
+@media(max-width:1250px){
+ .invoice-media-list{grid-template-columns:repeat(3,minmax(0,1fr));}
+ .invoice-media-serial-selector{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media(max-width:850px){
+ .invoice-media-modal-card .invoice-media-modal-body{grid-template-columns:minmax(220px,245px) minmax(0,1fr);}
+ .invoice-media-list{grid-template-columns:repeat(2,minmax(0,1fr));}
+ .invoice-media-serial-selector{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:740px){
+ .invoice-media-modal-card{width:calc(100vw - 12px);max-width:none;}
+ .invoice-media-modal-card .invoice-media-modal-body{display:flex;flex-direction:column;}
+ .invoice-media-browser{padding:12px 12px 20px;}
+ .invoice-media-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+ .invoice-media-serial-selector{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
+ .invoice-media-serial-chip{min-height:36px;padding:5px 7px;}
+ .invoice-media-file-thumb{height:72px;max-height:72px;}
+ .invoice-media-serial-file-panel{padding:9px;}
+}
+@media(max-width:380px){
+ .invoice-media-file-actions button{padding:4px 5px;font-size:8px;}
+ .invoice-media-serial-selector{grid-template-columns:repeat(2,minmax(0,1fr));}
+}

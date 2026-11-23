@@ -24,9 +24,7 @@ const PERMISSION_CATALOG = [
   { code: 'orders.serials', name: 'مدیریت سریال‌ها', group: 'فاکتورها' },
   { code: 'orders.sales_notes', name: 'مدیریت توضیحات فروشنده', group: 'فاکتورها' },
   { code: 'orders.related', name: 'مدیریت فاکتورهای وابسته', group: 'فاکتورها' },
-  { code: 'media.upload', name: 'بارگذاری فایل در فاکتور و سرور', group: 'مدیریت فایل‌ها' },
-  { code: 'media.edit', name: 'ویرایش نام و جایگزینی فایل', group: 'مدیریت فایل‌ها' },
-  { code: 'media.delete', name: 'حذف فایل‌های بارگذاری‌شده', group: 'مدیریت فایل‌ها' },
+  { code: 'orders.media', name: 'مدیریت فایل‌ها (بارگذاری، ویرایش و حذف)', group: 'عملیات فاکتور' },
   { code: 'archive.view', name: 'مشاهده بایگانی فاکتورها', group: 'بایگانی' },
   { code: 'reports.view', name: 'مشاهده گزارش ها', group: 'گزارش ها' },
   { code: 'logs.view', name: 'مشاهده فعالیت کاربران', group: 'فعالیت ها' },
@@ -56,9 +54,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'orders.view': true,
     'archive.view': true,
     'account.change_password': true,
-    'media.upload': true,
-    'media.edit': true,
-    'media.delete': true
+    'orders.media': true
   },
   sales: {
     'menus.home': true,
@@ -111,7 +107,17 @@ function normalizePermissions(roleOrRoles, input = {}) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const output = {};
   PERMISSION_CODES.forEach(code => {
-    output[code] = Boolean(Object.prototype.hasOwnProperty.call(source, code) ? source[code] : base[code]);
+    if (code === 'orders.media' && !Object.prototype.hasOwnProperty.call(source, code)) {
+      // Existing databases used three separate media permissions. Never elevate
+      // a partially privileged user to full upload/edit/delete capabilities.
+      const legacy = ['media.upload', 'media.edit', 'media.delete'];
+      const present = legacy.filter(key => Object.prototype.hasOwnProperty.call(source, key));
+      output[code] = present.length
+        ? present.length === legacy.length && legacy.every(key => source[key] === true)
+        : Boolean(base[code]);
+    } else {
+      output[code] = Boolean(Object.prototype.hasOwnProperty.call(source, code) ? source[code] : base[code]);
+    }
   });
   return output;
 }

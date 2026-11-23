@@ -12,24 +12,34 @@ const {
 } = require('../src/invoice-media');
 
 const { normalizePermissions, PERMISSION_CATALOG } = require('../src/security/permissions');
-test('file capabilities depend on individual permissions, not static technician names or roles', () => {
-  assert.equal(canMedia({roles:['technician'],permissions:{'media.upload':false}},'upload'),false);
-  assert.equal(canMedia({roles:['sales'],permissions:{'media.upload':true}},'upload'),true);
-  assert.equal(canMedia({roles:['sales'],permissions:{'media.edit':true}},'edit'),true);
-  assert.equal(canMedia({roles:['admin'],permissions:{'media.delete':true}},'delete'),true);
-  assert.equal(canMedia({roles:['technician'],permissions:{}},'delete'),false);
-  assert.equal(canMedia({roles:['sales'],permissions:{'media.upload':true}},'delete'),false);
+test('one management permission controls upload, edit and delete', () => {
+  for (const role of ['sales','technician','admin']) {
+    const reader = {roles:[role],permissions:{'orders.media':false}};
+    const manager = {roles:[role],permissions:{'orders.media':true}};
+    for (const action of ['upload','edit','delete']) {
+      assert.equal(canMedia(reader,action),false);
+      assert.equal(canMedia(manager,action),true);
+    }
+  }
+  assert.equal(canMedia({roles:['sales'],permissions:{'media.upload':true}},'upload'),false);
 });
-test('new file permissions appear in catalog, default to technicians, and can be revoked', () => {
-  for(const code of ['media.upload','media.edit','media.delete'])
-    assert.equal(PERMISSION_CATALOG.some(item=>item.code===code),true);
-  const tech=normalizePermissions(['technician'],{'orders.view':true}); // Simulates existing DB user without the new keys
-  for(const code of ['media.upload','media.edit','media.delete']) assert.equal(tech[code],true);
-  const sales=normalizePermissions(['sales'],{});
-  for(const code of ['media.upload','media.edit','media.delete']) assert.equal(Boolean(sales[code]),false);
-  assert.equal(normalizePermissions(['technician'],{'media.delete':false})['media.delete'],false);
-  assert.equal(normalizePermissions(['admin'],{})['media.delete'],true);
-  assert.equal(normalizePermissions(['sales'],{'media.edit':true})['media.edit'],true);
+test('management permission appears under order operations with correct defaults', () => {
+  assert.equal(PERMISSION_CATALOG.find(x=>x.code==='orders.media')?.group,'عملیات فاکتور');
+  assert.equal(PERMISSION_CATALOG.some(x=>x.code.startsWith('media.')),false);
+  assert.equal(normalizePermissions(['technician'],{})['orders.media'],true);
+  assert.equal(normalizePermissions(['sales'],{})['orders.media'],false);
+  assert.equal(normalizePermissions(['admin'],{})['orders.media'],true);
+  assert.equal(normalizePermissions(['sales'],{'orders.media':true})['orders.media'],true);
+  assert.equal(normalizePermissions(['technician'],{'orders.media':false})['orders.media'],false);
+});
+test('legacy upload/edit/delete permissions are migrated without privilege escalation', () => {
+  const all={'media.upload':true,'orders.media':true,'media.delete':true};
+  assert.equal(normalizePermissions(['technician'],all)['orders.media'],true);
+  assert.equal(normalizePermissions(['sales'],all)['orders.media'],true);
+  assert.equal(normalizePermissions(['technician'],{...all,'media.delete':false})['orders.media'],false);
+  assert.equal(normalizePermissions(['admin'],{'media.upload':false})['orders.media'],false);
+  assert.equal(normalizePermissions(['sales'],{'media.upload':true})['orders.media'],false);
+  assert.equal(normalizePermissions(['technician'],{...all,'orders.media':false})['orders.media'],false);
 });
 test('metadata rename validation keeps file extension and prevents dangerous names',()=>{
   assert.equal(validDisplayName('گزارش سرور.pdf','pdf'),'گزارش سرور.pdf');
@@ -97,6 +107,7 @@ function mockMediaApp() {
     if(sql.includes('SELECT original_name,download_name FROM invoice_media'))return {rowCount:1,rows:[{original_name:'old.pdf',download_name:'SER1-01.pdf'}]};
     if(sql.includes('UPDATE invoice_media SET original_name='))return {rowCount:1,rows:[{id:5,original_name:args[0]}]};
     if(sql.includes('SELECT invoice_number FROM orders'))return {rowCount:1,rows:[{invoice_number:'12345'}]};
+    if(sql.includes('SELECT id FROM invoice_media WHERE order_id=$1 AND id=$2'))return {rowCount:1,rows:[{id:5}]};
     return {rowCount:0,rows:[]};
   }};
   const requirePermission=(req,reply,code)=>{
@@ -122,7 +133,7 @@ test('all authenticated categories can list attachments without technician or or
     assert.deepEqual(response.serials,['SER1','SER2']);
   }
 });
-test('backend blocks upload, edit, replace and delete independently when permission is revoked',async()=>{
+test('backend blocks upload, edit, replace and delete when permission is revoked',async()=>{
   const {handlers,queries}=mockMediaApp();
   const request={user:{roles:['technician'],permissions:{}},params:{id:'2',mediaId:'5'},body:{original_name:'new.pdf'}};
   for(const [method,route] of [
@@ -137,9 +148,21 @@ test('backend blocks upload, edit, replace and delete independently when permiss
   }
   assert.equal(queries.length,0,'denied operations never access the database or filesystem');
 });
-test('a non-technician with edit permission can rename a file and changes are logged',async()=>{
+test('read-only users can list and download files without the management right',async()=>{
+  const {handlers}=mockMediaApp();
+  const user={role:'sales',roles:['sales'],permissions:{'orders.media':false}};
+  const listing=await handlers.get('GET /api/orders/:id/media')({user,params:{id:'2'}},mockReply());
+  assert.equal(listing.files.length,1);
+  for(const name of ['can_upload','can_edit','can_delete','can_manage'])assert.equal(listing[name],false);
+  const response=await handlers.get('POST /api/orders/:id/media/ticket')({
+    user,params:{id:'2'},body:{kind:'file',file_id:5}
+  },mockReply());
+  assert.match(response.url,/^\/api\/media-transfer\//);
+});
+
+test('a non-technician with management permission can rename a file and changes are logged',async()=>{
   const {handlers,queries}=mockMediaApp();
-  const request={user:{role:'sales',roles:['sales'],permissions:{'media.edit':true}},params:{id:'2',mediaId:'5'},body:{original_name:'گزارش جدید.pdf'}};
+  const request={user:{role:'sales',roles:['sales'],permissions:{'orders.media':true}},params:{id:'2',mediaId:'5'},body:{original_name:'گزارش جدید.pdf'}};
   const reply=mockReply();
   const result=await handlers.get('PATCH /api/orders/:id/media/:mediaId')(request,reply);
   assert.equal(result.success,true);
@@ -177,7 +200,7 @@ test('replacement streams original bytes, preserves group/ID, and removes old fi
   registerInvoiceMedia(app,{pool,requirePermission:(req,reply,perm)=>Boolean(req.user.permissions[perm]),
     writeActivityLog:async log=>actions.push(log),broadcastRealtimeEvent:()=>{}});
   const bytes=Buffer.from('%PDF-1.7\nReplacement contents\n');
-  const request={params:{id:'2',mediaId:'5'},user:{id:9,username:'agent',full_name:'کارشناس فروش',permissions:{'media.edit':true}},
+  const request={params:{id:'2',mediaId:'5'},user:{id:9,username:'agent',full_name:'کارشناس فروش',permissions:{'orders.media':true}},
     headers:{'x-file-name':encodeURIComponent('new.pdf'),'x-display-name':encodeURIComponent('گزارش نهایی.pdf'),'content-length':String(bytes.length)},
     body:Readable.from([bytes]),log:{error:e=>{throw e}}};
   const reply=mockReply();

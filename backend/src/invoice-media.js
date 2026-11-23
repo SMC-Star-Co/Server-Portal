@@ -33,7 +33,7 @@ const ZIP_TYPES = new Set(['docx','xlsx','pptx','odt','ods']);
 const OLE_TYPES = new Set(['doc','xls','ppt']);
 const TEXT_TYPES = new Set(['txt','csv','log','rtf']);
 function canMedia(user, action) {
-  return Boolean(user?.permissions?.['media.' + action]);
+  return ['upload', 'edit', 'delete'].includes(action) && Boolean(user?.permissions?.['orders.media']);
 }
 function validId(value) {
   const n = Number(value);
@@ -213,7 +213,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   });
 
   fastify.post('/api/orders/:id/media',{bodyLimit:MAX_BYTES},async(request,reply) => {
-    if(!requirePermission(request,reply,'media.upload'))return;
+    if(!requirePermission(request,reply,'orders.media'))return;
     const id=validId(request.params.id);
     if(!id)return fail(reply,400,'شناسه فاکتور معتبر نیست.');
     const scope=request.headers['x-media-scope']==='serial'?'serial':'invoice';
@@ -307,7 +307,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
 
   // Rename the user-facing label without touching original file bytes or standardized download names.
   fastify.patch('/api/orders/:id/media/:mediaId',async(request,reply)=>{
-    if(!requirePermission(request,reply,'media.edit'))return;
+    if(!requirePermission(request,reply,'orders.media'))return;
     const id=validId(request.params.id),mid=validId(request.params.mediaId);
     if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
     const current=await pool.query('SELECT original_name,download_name FROM invoice_media WHERE id=$1 AND order_id=$2',[mid,id]);
@@ -327,7 +327,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   // Replace the underlying contents in-place logically (stable media ID and group).
   // Stream into a new path and atomically switch the DB record, then remove old bytes.
   fastify.put('/api/orders/:id/media/:mediaId/content',{bodyLimit:MAX_BYTES},async(request,reply)=>{
-    if(!requirePermission(request,reply,'media.edit'))return;
+    if(!requirePermission(request,reply,'orders.media'))return;
     const id=validId(request.params.id),mid=validId(request.params.mediaId);
     if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
     const initial=await pool.query('SELECT id FROM invoice_media WHERE id=$1 AND order_id=$2',[mid,id]);
@@ -407,7 +407,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
   });
 
   fastify.delete('/api/orders/:id/media/:mediaId',async(request,reply)=>{
-    if(!requirePermission(request,reply,'media.delete'))return;
+    if(!requirePermission(request,reply,'orders.media'))return;
     const id=validId(request.params.id),mid=validId(request.params.mediaId);
     if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
     const result=await pool.query('DELETE FROM invoice_media WHERE id=$1 AND order_id=$2 RETURNING *',[mid,id]);

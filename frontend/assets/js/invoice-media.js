@@ -4,7 +4,6 @@ const invoiceMedia = {
   generation: 0, uploading: false, uploadScope: 'serial', view: 'serial',
   urls: new Set(), thumbnailObserver: null, activeSerial: null,
   pending: {serial:[], invoice:[]}, pendingSerial: null,
-  layout: 'grid', filterText: '', filterType: 'all', sort: 'newest',
   abortController: null, uploadCancelled: false, editingFile: null, editSaving: false
 };
 
@@ -22,21 +21,9 @@ function mediaDate(value) {
   if(Number.isNaN(date.getTime())) return 'زمان نامشخص';
   return new Intl.DateTimeFormat('fa-IR',{year:'numeric',month:'short',day:'numeric'}).format(date);
 }
-function mediaFilterMatches(file) {
-  const text=invoiceMedia.filterText;
-  const haystack=[file.original_name,file.download_name,file.serial_number,file.uploader_name].join(' ').toLocaleLowerCase();
-  return (!text||haystack.includes(text)) && (invoiceMedia.filterType==='all'||fileType(file).kind===invoiceMedia.filterType);
-}
 function mediaFilteredFiles(files) {
-  const filtered=files.filter(mediaFilterMatches);
-  const mode=invoiceMedia.sort;
-  filtered.sort((a,b)=>mode==='name'
-    ? String(a.original_name||a.download_name||'').localeCompare(String(b.original_name||b.download_name||''),'fa')
-    : mode==='size' ? Number(b.stored_bytes)-Number(a.stored_bytes)
-    : mode==='oldest' ? Number(a.id)-Number(b.id) : Number(b.id)-Number(a.id));
-  return filtered;
+  return [...files].sort((a,b)=>Number(b.id)-Number(a.id));
 }
-
 function mediaIcon(ext) {
   const code = String(ext || '').toLowerCase();
   if (code === 'pdf') return {kind:'pdf',label:'PDF'};
@@ -80,13 +67,8 @@ function openInvoiceMediaFromOps() {
     if(input) input.value='';
   }
   mediaElement('invoiceMediaUploader').hidden = true;
-  mediaElement('invoiceMediaSearch').value = '';
-  mediaElement('invoiceMediaTypeFilter').value = 'all';
-  mediaElement('invoiceMediaSort').value = 'newest';
-  invoiceMedia.filterText = ''; invoiceMedia.filterType = 'all'; invoiceMedia.sort = 'newest';
   mediaElement('invoiceMediaProgress').textContent = '';
   mediaElement('invoiceMediaProgressWrap').hidden = true;
-  setInvoiceMediaLayout('grid');
   invoiceMedia.uploadScope = 'serial';
   invoiceMedia.view = 'serial';
   mediaElement('invoiceMediaModal').style.display = 'flex';
@@ -263,20 +245,15 @@ async function refreshInvoiceMedia() {
     }
     select.disabled = !invoiceMedia.serials.length;
     const count = invoiceMedia.files.filter(f => f.media_scope === 'serial').length;
-    mediaElement('invoiceMediaSummary').textContent = invoiceMedia.serials.length + ' سریال ثبت‌شده · آماده دریافت';
-    mediaElement('invoiceMediaTotalCount').textContent = invoiceMedia.files.length.toLocaleString('fa-IR');
-    mediaElement('invoiceMediaServerTotal').textContent = count.toLocaleString('fa-IR');
-    mediaElement('invoiceMediaInvoiceTotal').textContent = (invoiceMedia.files.length-count).toLocaleString('fa-IR');
-    mediaElement('invoiceMediaStorageTotal').textContent = mediaSize(invoiceMedia.files.reduce((sum,file)=>sum+Number(file.stored_bytes||0),0));
     mediaElement('invoiceMediaInvoiceCount').textContent = invoiceMedia.files.length - count;
     mediaElement('invoiceMediaSerialCount').textContent = count;
     updateInvoiceMediaTarget();
     drawInvoiceMedia();
   } catch(error) {
     if (generation === invoiceMedia.generation) {
-      mediaElement('invoiceMediaFilteredCount').textContent='بارگذاری ناموفق بود؛ دوباره تلاش کنید.';
+      if(root) root.textContent='بارگذاری فایل‌ها ناموفق بود؛ دوباره تلاش کنید.';
       if(root) root.textContent = error.message || 'خطا در دریافت اطلاعات';
-      mediaElement('invoiceMediaSummary').textContent = 'بارگذاری ناموفق بود';
+
     }
   }
 }
@@ -299,14 +276,10 @@ function mediaPreviewable(file) {
 }
 function drawMediaRows(container,files) {
   container.replaceChildren();
-  container.classList.toggle('is-list-layout',invoiceMedia.layout==='list');
   if (!files.length) {
     const empty=document.createElement('div');
     empty.className='invoice-media-empty';
-    const filtered=Boolean(invoiceMedia.filterText||invoiceMedia.filterType!=='all');
-    empty.innerHTML='<span class="invoice-media-empty-icon">▧</span><strong>'+
-      (filtered?'نتیجه‌ای پیدا نشد':'هنوز فایلی ثبت نشده است')+'</strong><small>'+
-      (filtered?'عبارت یا نوع فایل را تغییر دهید.':'مدارک این بخش پس از بارگذاری در اینجا قرار می‌گیرند.')+'</small>';
+    empty.innerHTML='<span class="invoice-media-empty-icon">▧</span><strong>هنوز فایلی ثبت نشده است</strong><small>مدارک این بخش پس از بارگذاری در اینجا قرار می‌گیرند.</small>';
     container.append(empty); return;
   }
   for (const file of files) {
@@ -374,11 +347,6 @@ function drawInvoiceMedia() {
   const serials=invoiceMedia.serials.slice();
   for(const file of files)if(file.media_scope==='serial' && file.serial_number && !serials.includes(file.serial_number))serials.push(file.serial_number);
   const serialFiles=files.filter(f=>f.media_scope==='serial');
-  const matchedSerialFiles=mediaFilteredFiles(serialFiles);
-  const totalResult=invoiceMedia.view==='invoice'?invoiceFiltered.length:matchedSerialFiles.length;
-  const countLabel=mediaElement('invoiceMediaFilteredCount');
-  countLabel.textContent=totalResult.toLocaleString('fa-IR')+' فایل '+(invoiceMedia.view==='invoice'?'فاکتور':'سرور')+' در فهرست';
-  mediaElement('invoiceMediaClearFilters').hidden=!(invoiceMedia.filterText||invoiceMedia.filterType!=='all'||invoiceMedia.sort!=='newest');
   if(!serials.length){
     const empty=document.createElement('div');empty.className='invoice-media-empty';
     empty.innerHTML='<span class="invoice-media-empty-icon">◈</span><strong>سریالی برای این فاکتور ثبت نشده است.</strong><small>از بخش مدیریت سریال‌ها می‌توانید سرور اضافه کنید.</small>';
@@ -388,15 +356,14 @@ function drawInvoiceMedia() {
     if(!invoiceMedia.activeSerial || !serials.includes(invoiceMedia.activeSerial))invoiceMedia.activeSerial=firstWithFiles||serials[0];
     const selector=document.createElement('div');selector.className='invoice-media-serial-selector';
     selector.setAttribute('role','group');selector.setAttribute('aria-label','انتخاب پرونده سرور');
-    serials.forEach((serial,index)=>{
+    serials.forEach(serial=>{
       const count=serialFiles.filter(file=>file.serial_number===serial).length;
       const button=document.createElement('button');button.type='button';button.className='invoice-media-serial-chip';
       button.classList.toggle('is-active',serial===invoiceMedia.activeSerial);
       button.setAttribute('aria-pressed',String(serial===invoiceMedia.activeSerial));button.title=serial;
-      const order=document.createElement('small');order.className='invoice-media-serial-position';order.textContent=String(index+1).padStart(2,'0');
       const name=document.createElement('strong');name.textContent=serial;
       const badge=document.createElement('span');badge.className='invoice-media-serial-total';badge.textContent=count.toLocaleString('fa-IR')+' فایل';
-      button.append(order,name,badge);
+      button.append(name,badge);
       button.addEventListener('click',()=>{invoiceMedia.activeSerial=serial;drawInvoiceMedia()});selector.append(button);
     });
     groups.append(selector);
@@ -417,29 +384,6 @@ function drawInvoiceMedia() {
     for(const target of mediaElement('invoiceMediaModal').querySelectorAll('.invoice-media-file-thumb[data-media-id]'))
       fetchMediaThumbnail(target.dataset.mediaId,target,invoiceMedia.generation);
   }
-}
-function updateInvoiceMediaFilters() {
-  invoiceMedia.filterText=mediaElement('invoiceMediaSearch').value.trim().toLocaleLowerCase();
-  invoiceMedia.filterType=mediaElement('invoiceMediaTypeFilter').value;
-  invoiceMedia.sort=mediaElement('invoiceMediaSort').value;
-  if(invoiceMedia.view==='serial' && (invoiceMedia.filterText||invoiceMedia.filterType!=='all')){
-    const candidates=mediaFilteredFiles(invoiceMedia.files.filter(file=>file.media_scope==='serial'));
-    if(candidates.length && !candidates.some(file=>file.serial_number===invoiceMedia.activeSerial))
-      invoiceMedia.activeSerial=candidates[0].serial_number;
-  }
-  drawInvoiceMedia();
-}
-function clearInvoiceMediaFilters() {
-  mediaElement('invoiceMediaSearch').value='';
-  mediaElement('invoiceMediaTypeFilter').value='all';
-  mediaElement('invoiceMediaSort').value='newest';
-  updateInvoiceMediaFilters();
-}
-function setInvoiceMediaLayout(layout) {
-  invoiceMedia.layout=layout==='list'?'list':'grid';
-  mediaElement('invoiceMediaGridButton')?.classList.toggle('is-active',invoiceMedia.layout==='grid');
-  mediaElement('invoiceMediaListButton')?.classList.toggle('is-active',invoiceMedia.layout==='list');
-  for(const item of document.querySelectorAll('.invoice-media-list'))item.classList.toggle('is-list-layout',invoiceMedia.layout==='list');
 }
 async function fetchMediaThumbnail(mediaId,target,generation) {
   if (!target.isConnected || !mediaId) return;

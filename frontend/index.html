@@ -844,7 +844,7 @@
         <div class="modal-card portal-modal-card invoice-media-modal-card" onclick="event.stopPropagation()">
             <div class="portal-modal-head invoice-media-head">
                 <div class="portal-modal-title-wrap">
-                    <div class="portal-modal-icon"><span data-portal-icon="folder-open"></span></div>
+                    <div class="portal-modal-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h5l2.5 3H19a2 2 0 0 1 2 2v1"/><path d="M3 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 1.9-1.3L22 12H7a2 2 0 0 0-1.9 1.3L3 19"/></svg></div>
                     <div>
                         <div class="invoice-media-eyebrow">پرونده دیجیتال / مستندات</div>
                         <h3 class="portal-modal-title" id="invoiceMediaModalTitle">مدیریت فایل‌های فاکتور</h3>
@@ -856,12 +856,6 @@
                     <button type="button" class="invoice-media-head-refresh" onclick="refreshInvoiceMedia()" title="دریافت آخرین تغییرات"><span data-portal-icon="refresh-cw"></span> به‌روزرسانی</button>
                     <button type="button" onclick="closeInvoiceMediaModal()" class="close-btn" aria-label="بستن">×</button>
                 </div>
-            </div>
-            <div class="invoice-media-stat-strip" aria-label="خلاصه پرونده">
-                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">▤</span><div><strong id="invoiceMediaTotalCount">۰</strong><small>کل فایل‌ها</small></div></div>
-                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">◈</span><div><strong id="invoiceMediaServerTotal">۰</strong><small>مدارک سرورها</small></div></div>
-                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">▧</span><div><strong id="invoiceMediaInvoiceTotal">۰</strong><small>مدارک فاکتور</small></div></div>
-                <div class="invoice-media-stat"><span class="invoice-media-stat-icon">⬡</span><div><strong id="invoiceMediaStorageTotal">۰ KB</strong><small>حجم فایل‌ها</small></div></div>
             </div>
             <div class="portal-modal-body invoice-media-modal-body">
                 <section class="invoice-media-composer" id="invoiceMediaUploader" aria-label="بارگذاری مدارک" hidden>
@@ -901,27 +895,17 @@
                     <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
                 </section>
                 <section id="invoiceMediaBrowser" class="invoice-media-browser" aria-label="جست‌وجو و مشاهده فایل‌ها">
-                    <div class="invoice-media-browser-top">
-                        <div><span class="invoice-media-section-overline">فایل‌های این پرونده</span><strong>کتابخانه مستندات</strong><p id="invoiceMediaSummary" class="invoice-media-muted">در حال دریافت اطلاعات...</p></div>
-                        <span id="invoiceMediaPermissionHint" class="invoice-media-readonly" hidden>حالت مشاهده</span>
-                    </div>
+                    <span id="invoiceMediaPermissionHint" class="invoice-media-readonly" hidden>فقط مشاهده و دریافت</span>
                     <div class="invoice-media-tabbar invoice-media-view-tabs" role="group" aria-label="محل فایل‌ها">
                         <button type="button" id="invoiceMediaViewSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaView('serial')">سرورها <span id="invoiceMediaSerialCount">۰</span></button>
                         <button type="button" id="invoiceMediaViewInvoice" class="invoice-media-tab" onclick="setInvoiceMediaView('invoice')">فاکتور <span id="invoiceMediaInvoiceCount">۰</span></button>
                     </div>
-                    <div class="invoice-media-toolbar">
-                        <label class="invoice-media-search-wrap" for="invoiceMediaSearch"><span aria-hidden="true">⌕</span><input id="invoiceMediaSearch" type="search" placeholder="جست‌وجو در نام، سریال یا آپلودکننده..." oninput="updateInvoiceMediaFilters()" autocomplete="off"></label>
-                        <label class="invoice-media-select-wrap"><span>نوع فایل</span><select id="invoiceMediaTypeFilter" onchange="updateInvoiceMediaFilters()"><option value="all">همه</option><option value="image">تصاویر</option><option value="video">ویدیو</option><option value="document">اسناد</option></select></label>
-                        <label class="invoice-media-select-wrap"><span>مرتب‌سازی</span><select id="invoiceMediaSort" onchange="updateInvoiceMediaFilters()"><option value="newest">جدیدترین</option><option value="oldest">قدیمی‌ترین</option><option value="name">نام فایل</option><option value="size">حجم بیشتر</option></select></label>
-                        <div class="invoice-media-layout-switch" role="group" aria-label="شیوه نمایش"><button type="button" id="invoiceMediaGridButton" class="is-active" onclick="setInvoiceMediaLayout('grid')" title="نمای شبکه‌ای" aria-label="نمای شبکه‌ای">▦</button><button type="button" id="invoiceMediaListButton" onclick="setInvoiceMediaLayout('list')" title="نمای فهرستی" aria-label="نمای فهرستی">☰</button></div>
-                    </div>
-                    <div class="invoice-media-results-row"><span id="invoiceMediaFilteredCount">در حال بارگذاری...</span><button type="button" id="invoiceMediaClearFilters" onclick="clearInvoiceMediaFilters()" hidden>پاک‌کردن فیلترها ×</button></div>
                     <div id="invoiceMediaInvoiceView" hidden>
                         <div class="invoice-media-view-heading"><span>اسناد عمومی فاکتور</span><button type="button" id="invoiceMediaInvoiceDownloadAll" class="secondary-btn" hidden onclick="downloadInvoiceMediaGroup('invoice')">دریافت همه (ZIP)</button></div>
                         <div id="invoiceMediaInvoiceList" class="invoice-media-list"></div>
                     </div>
                     <div id="invoiceMediaSerialView">
-                        <div class="invoice-media-view-heading"><span>پرونده سرورها <small class="invoice-media-view-note">به ترتیب ثبت سریال</small></span></div>
+                        <div class="invoice-media-view-heading"><span>مدارک سرورها</span></div>
                         <div id="invoiceMediaSerialGroups" class="invoice-media-serial-groups"></div>
                     </div>
                 </section>

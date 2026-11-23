@@ -39,9 +39,7 @@ const API_URL = '/api';
             { code: 'orders.serials', name: 'مدیریت سریال‌ها', group: 'فاکتورها' },
             { code: 'orders.sales_notes', name: 'مدیریت توضیحات فروشنده', group: 'فاکتورها' },
             { code: 'orders.related', name: 'مدیریت فاکتورهای وابسته', group: 'فاکتورها' },
-            { code: 'media.upload', name: 'بارگذاری فایل در فاکتور و سرور', group: 'مدیریت فایل‌ها' },
-            { code: 'media.edit', name: 'ویرایش نام و جایگزینی فایل', group: 'مدیریت فایل‌ها' },
-            { code: 'media.delete', name: 'حذف فایل‌های بارگذاری‌شده', group: 'مدیریت فایل‌ها' },
+            { code: 'orders.media', name: 'مدیریت فایل‌ها (بارگذاری، ویرایش و حذف)', group: 'عملیات فاکتور' },
             { code: 'archive.view', name: 'مشاهده بایگانی فاکتورها', group: 'بایگانی' },
             { code: 'reports.view', name: 'مشاهده گزارش ها', group: 'گزارش ها' },
             { code: 'logs.view', name: 'مشاهده فعالیت کاربران', group: 'فعالیت ها' },
@@ -68,9 +66,7 @@ const API_URL = '/api';
                 'orders.view': true,
                 'archive.view': true,
                 'account.change_password': true,
-                'media.upload': true,
-                'media.edit': true,
-                'media.delete': true
+                'orders.media': true
             },
             sales: {
                 'menus.home': true,
@@ -510,8 +506,7 @@ const API_URL = '/api';
             const code = String(item.code || '');
             if (code.startsWith('menus.')) return 'منوها';
             if (['orders.view', 'orders.create', 'orders.update', 'orders.delete', 'orders.priority'].includes(code)) return 'فاکتورها';
-            if (['orders.technical', 'orders.serials', 'orders.sales_notes', 'orders.related'].includes(code)) return 'عملیات فاکتور';
-            if (code.startsWith('media.')) return 'مدیریت فایل‌ها';
+            if (['orders.technical', 'orders.serials', 'orders.media', 'orders.sales_notes', 'orders.related'].includes(code)) return 'عملیات فاکتور';
             if (code.startsWith('archive.')) return 'بایگانی';
             if (code.startsWith('reports.')) return 'گزارش‌ها';
             if (code.startsWith('logs.')) return 'فعالیت‌ها';
@@ -531,7 +526,7 @@ const API_URL = '/api';
             const roles = getSelectedRolesFromForm();
             const defaults = buildRoleDefaults(roles);
             const values = selectedPermissions || defaults;
-            const categoryOrder = ['منوها', 'فاکتورها', 'عملیات فاکتور', 'مدیریت فایل‌ها', 'بایگانی', 'گزارش‌ها', 'فعالیت‌ها', 'حساب کاربری', 'مدیریت کاربران', 'اطلاعات پایه', 'سایر دسترسی‌ها'];
+            const categoryOrder = ['منوها', 'فاکتورها', 'عملیات فاکتور', 'بایگانی', 'گزارش‌ها', 'فعالیت‌ها', 'حساب کاربری', 'مدیریت کاربران', 'اطلاعات پایه', 'سایر دسترسی‌ها'];
             const grouped = {};
             permissions.forEach(item => {
                 const category = getPermissionCategory(item);

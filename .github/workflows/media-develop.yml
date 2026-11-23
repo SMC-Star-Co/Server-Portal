@@ -1,0 +1,43 @@
+name: Media UI compact and permissions regression
+on:
+  push:
+    branches:
+      - media-develop
+  workflow_dispatch:
+
+jobs:
+  frontend:
+    name: Layout and permission UI regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --check frontend/assets/js/app.js
+      - run: node --check frontend/assets/js/invoice-media.js
+      - run: node --test frontend/test/media-redesign.test.cjs
+  backend:
+    name: Media API and permission regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: node --check src/security/permissions.js
+        working-directory: backend
+      - run: node --check src/invoice-media.js
+        working-directory: backend
+      - run: node --test test/invoice-media.test.js
+        working-directory: backend
+  docker:
+    name: Docker configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --env-file .env.example config --quiet
