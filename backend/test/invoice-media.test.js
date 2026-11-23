@@ -33,7 +33,7 @@ test('management permission appears under order operations with correct defaults
   assert.equal(normalizePermissions(['technician'],{'orders.media':false})['orders.media'],false);
 });
 test('legacy upload/edit/delete permissions are migrated without privilege escalation', () => {
-  const all={'media.upload':true,'orders.media':true,'media.delete':true};
+  const all={'media.upload':true,'media.edit':true,'media.delete':true};
   assert.equal(normalizePermissions(['technician'],all)['orders.media'],true);
   assert.equal(normalizePermissions(['sales'],all)['orders.media'],true);
   assert.equal(normalizePermissions(['technician'],{...all,'media.delete':false})['orders.media'],false);
@@ -101,6 +101,7 @@ function mockMediaApp() {
   const pool={query:async(sql,args=[])=>{
     queries.push({sql,args});
     if(sql.includes('SELECT invoice_number,serials FROM orders'))return {rowCount:1,rows:[{invoice_number:'12345',serials:'SER1,SER2'}]};
+    if(sql.includes('SELECT serials FROM orders'))return {rowCount:1,rows:[{serials:'SER1,SER2'}]};
     if(sql.includes('SELECT id,original_name,COALESCE(download_name'))return {rowCount:1,rows:[{
       id:5,original_name:'old.pdf',download_name:'SER1-01.pdf',mime_type:'application/pdf',stored_bytes:1000,media_scope:'serial',serial_number:'SER1'
     }]};
