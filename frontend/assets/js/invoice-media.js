@@ -339,7 +339,7 @@ function drawMediaRows(container,files) {
     if(file.created_at)date.dateTime=String(file.created_at);
     nameRow.append(name,size);
     const by=document.createElement('small');by.className='invoice-media-uploaded-by';
-    by.textContent='ثبت : '+(file.uploader_name||'نامشخص');by.title=by.textContent;
+    by.textContent=file.uploader_name||'نامشخص';by.title=by.textContent;
     sub.append(date,by);meta.append(nameRow,sub);
     const actions=document.createElement('div');actions.className='invoice-media-file-actions';
     if(mediaPreviewable(file))actions.append(mediaButton('نمایش','invoice-media-action-view',()=>previewInvoiceMedia(file)));
@@ -613,7 +613,7 @@ async function openMediaDocumentPreview(file,dialog,body,request){
   const ext=mediaDocumentExtension(file),plain=['txt','log','csv'].includes(ext);
   const endpoint=API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id+'/document-data';
   const controller=new AbortController();
-  let closed=false,task=null,pdf=null,renderTask=null,textLayer=null,revision=0,current=1,total=0,zoom=1,fit=!plain,lib=null,text=null,lastScale=1;
+  let closed=false,task=null,pdf=null,renderTask=null,textLayer=null,revision=0,current=1,total=0,zoom=1,fit=false,lib=null,text=null,lastScale=1;
   const active=()=>!closed&&request===mediaPreviewRequest;
   const shell=document.createElement('div');shell.className='invoice-media-pdf-view';
   const toolbar=document.createElement('div');toolbar.className='invoice-media-pdf-toolbar';toolbar.dir='rtl';
@@ -861,7 +861,7 @@ async function previewInvoiceMedia(file) {
   previewTitle.textContent=mediaServerName(file);previewTitle.title=mediaServerName(file);
   mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaSize(file.stored_bytes)+' · '+mediaDate(file);
   const uploader=mediaElement('invoiceMediaPreviewUploader');
-  uploader.textContent='ثبت : '+(file.uploader_name||'نامشخص');uploader.title=uploader.textContent;
+  uploader.textContent=file.uploader_name||'نامشخص';uploader.title=uploader.textContent;
   try{
     if(mediaDocumentExtension(file)){
       await openMediaDocumentPreview(file,dialog,body,request);
