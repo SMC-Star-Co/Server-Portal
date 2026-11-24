@@ -897,8 +897,7 @@ fastify.get('/api/activity-logs', async (request, reply) => {
     conditions.push(`split_part(COALESCE(created_at_jalali, ''), ' - ', 1) = $${values.length}`);
   }
 
-  const limit = Math.min(Math.max(parseInt(query.limit || '500', 10) || 500, 1), 1000);
-  values.push(limit);
+  // Return the complete matching activity history; filters remain parameterized.
 
   try {
     const result = await pool.query(`
@@ -907,7 +906,6 @@ fastify.get('/api/activity-logs', async (request, reply) => {
       FROM activity_logs
       ${conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''}
       ORDER BY created_at DESC, id DESC
-      LIMIT $${values.length}
     `, values);
     return result.rows;
   } catch (err) {
