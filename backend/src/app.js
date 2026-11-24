@@ -630,8 +630,9 @@ async function syncUsersSecurity(client) {
 // اضافه شدن Methods برای رفع خطای ارتباطی (CORS Preflight)
 fastify.register(require('@fastify/cors'), {
   origin: '*',
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'If-Range'],
+  exposedHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges', 'Content-Disposition', 'ETag']
 });
 
 // همگام‌سازی دیتابیس برای فیلدهای جدید و پاکسازی لیست‌های پایه

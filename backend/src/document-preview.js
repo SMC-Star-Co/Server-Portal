@@ -31,7 +31,17 @@ function registerDocumentPreview(fastify,{pool,storedPath,validId,fail}){
     const file=found.rows[0],ext=String(file.stored_name).split('.').pop().toLowerCase();
     try{
       const source=storedPath(file.stored_name),stat=await fsp.stat(source);
-      if(file.mime_type==='application/pdf')return await sendVideoRange(request,reply,source,'application/pdf',file.stored_name);
+      if(file.mime_type==='application/pdf'){
+        if(!stat.isFile()||stat.size<1)return fail(reply,404,'فایل PDF روی دیسک موجود نیست.');
+        if(request.headers?.range)return await sendVideoRange(request,reply,source,'application/pdf',file.stored_name);
+        // Explicit 200 and real bytes for whole-file fetches; never send an empty success.
+        reply.code(200).header('Content-Type','application/pdf').header('Content-Length',String(stat.size))
+          .header('Content-Disposition','inline').header('Accept-Ranges','bytes')
+          .header('Cache-Control','private, no-store').header('X-Content-Type-Options','nosniff')
+          .header('Referrer-Policy','no-referrer');
+        if(request.method==='HEAD')return reply.send();
+        return reply.send(fs.createReadStream(source));
+      }
       reply.header('Cache-Control','private, no-store').header('X-Content-Type-Options','nosniff');
       if(TEXT.has(ext)){
         if(stat.size>TEXT_LIMIT)return fail(reply,413,'سند متنی بیش از ۴ مگابایت است؛ فایل اصلی را دانلود کنید.');

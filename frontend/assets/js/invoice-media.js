@@ -306,6 +306,12 @@ function drawMediaRows(container,files) {
       const short=document.createElement('span');short.textContent=doc.label;
       const hint=document.createElement('small');hint.textContent=type.ext.toUpperCase();
       tile.append(short,hint);visual.append(tile);
+      if(mediaPreviewable(file)){
+        visual.classList.add('is-previewable');visual.setAttribute('role','button');visual.tabIndex=0;
+        visual.setAttribute('aria-label','پیش‌نمایش '+mediaServerName(file));
+        visual.addEventListener('click',()=>previewInvoiceMedia(file));
+        visual.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();previewInvoiceMedia(file);}});
+      }
     }else{
       visual.classList.add('is-previewable');
       const placeholder=document.createElement('span');placeholder.className='invoice-media-image-placeholder';
@@ -358,6 +364,7 @@ function drawInvoiceMedia() {
   const invoiceAll=files.filter(file=>file.media_scope!=='serial');
   const invoiceFiltered=mediaFilteredFiles(invoiceAll);
   drawMediaRows(mediaElement('invoiceMediaInvoiceList'),invoiceFiltered);
+  if(mediaPreviewNavigation)updateMediaPreviewNavigation();
   const invoiceDownload=mediaElement('invoiceMediaInvoiceDownloadAll');
   invoiceDownload.hidden=!invoiceAll.length;
   invoiceDownload.textContent=mediaGroupDownloadLabel(invoiceAll);
@@ -546,6 +553,74 @@ function loadMediaPdfLibrary(){
   }
   return mediaPdfLibrary;
 }
+// Fetch PDF bytes explicitly, never navigate to a file URL. Keep large PDFs range-based.
+const MEDIA_PDF_CHUNK=256*1024,MEDIA_PDF_SMALL=16*1024*1024;
+function mediaPdfSignature(bytes){
+  const head=bytes.subarray(0,1024);
+  for(let i=0;i+4<head.length;i++)if(head[i]===37&&head[i+1]===80&&head[i+2]===68&&head[i+3]===70&&head[i+4]===45)return true;
+  return false;
+}
+function mediaPdfRangeHeader(value){
+  const m=/^bytes (\d+)-(\d+)\/(\d+)$/i.exec(String(value||''));
+  if(!m)return null;
+  const [start,end,total]=m.slice(1).map(Number);
+  return [start,end,total].every(Number.isSafeInteger)&&start>=0&&end>=start&&total>end?{start,end,total}:null;
+}
+async function loadMediaPdfSource(lib,file,endpoint,signal,onFailure){
+  const expected=Number(file.stored_bytes)||0,large=expected>MEDIA_PDF_SMALL;
+  let ticket=null,ticketRequest=null;
+  async function ticketUrl(refresh=false){
+    if(refresh)ticket=null;
+    if(ticket)return ticket;
+    if(!ticketRequest)ticketRequest=requestMediaTicket({kind:'file',file_id:file.id,inline:true}).then(url=>{ticket=url;return url;}).finally(()=>{ticketRequest=null;});
+    return ticketRequest;
+  }
+  async function fetchBytes(range,useTicket=false){
+    if(signal.aborted)throw new DOMException('Aborted','AbortError');
+    const headers=range?{Range:'bytes='+range.start+'-'+(range.end-1)}:{};
+    const url=useTicket?await ticketUrl():endpoint;
+    if(signal.aborted)throw new DOMException('Aborted','AbortError');
+    let response=await apiFetch(url,{method:'GET',cache:'no-store',headers,signal});
+    if(useTicket&&response.status===404){response=await apiFetch(await ticketUrl(true),{method:'GET',cache:'no-store',headers,signal});}
+    if(response.status!==200&&response.status!==206){await response.body?.cancel().catch(()=>{});throw Error('پاسخ نامعتبر سرور ('+response.status+').');}
+    const mime=String(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+    if(mime!=='application/pdf'&&mime!=='application/octet-stream'){await response.body?.cancel().catch(()=>{});throw Error('پاسخ سرور فایل PDF نیست.');}
+    const part=mediaPdfRangeHeader(response.headers.get('content-range'));
+    const length=Number(response.headers.get('content-length'));
+    if(range&&response.status!==206){await response.body?.cancel().catch(()=>{});throw Error('ارسال بخشی PDF در سرور فعال نیست.');}
+    if(range&&(!part||part.start!==range.start||part.end!==Math.min(range.end,part.total)-1||(expected>0&&part.total!==expected))){
+      await response.body?.cancel().catch(()=>{});throw Error('بخش ارسالی سند معتبر نیست.');
+    }
+    if(!range&&(response.status!==200||length>MEDIA_PDF_SMALL)){await response.body?.cancel().catch(()=>{});throw Error('حجم یا پاسخ سند معتبر نیست.');}
+    const data=new Uint8Array(await response.arrayBuffer());
+    if(!data.length||(range&&data.length!==part.end-part.start+1)||(!range&&(data.length>MEDIA_PDF_SMALL||(expected>0&&data.length!==expected))))throw Error('فایل PDF کامل دریافت نشد.');
+    if((!range||range.start===0)&&!mediaPdfSignature(data))throw Error('محتوای فایل PDF معتبر نیست.');
+    return {data,part};
+  }
+  let useTicket=false;
+  async function fetchWithFallback(range){
+    const usingTicket=useTicket;
+    try{return await fetchBytes(range,usingTicket);}
+    catch(error){
+      if(signal.aborted||error.name==='AbortError'||usingTicket)throw error;
+      useTicket=true;return fetchBytes(range,true);
+    }
+  }
+  if(!large){
+    const result=await fetchWithFallback(null);
+    return {data:result.data};
+  }
+  const first=await fetchWithFallback({start:0,end:Math.min(expected,MEDIA_PDF_CHUNK)});
+  const range=new lib.PDFDataRangeTransport(first.part.total,first.data,true);
+  let aborted=false;
+  range.abort=()=>{aborted=true;};
+  range.requestDataRange=(begin,end)=>{
+    if(aborted||signal.aborted)return;
+    fetchWithFallback({start:begin,end}).then(result=>{if(!aborted&&!signal.aborted)range.onDataRange(begin,result.data);})
+      .catch(error=>{if(!aborted&&!signal.aborted){aborted=true;onFailure(error);}});
+  };
+  return {range,disableStream:true,disableAutoFetch:true,rangeChunkSize:MEDIA_PDF_CHUNK};
+}
 async function openMediaDocumentPreview(file,dialog,body,request){
   const ext=mediaDocumentExtension(file),plain=['txt','log','csv'].includes(ext);
   const endpoint=API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id+'/document-preview';
@@ -589,7 +664,7 @@ async function openMediaDocumentPreview(file,dialog,body,request){
       sheet.style.setProperty('--total-scale-factor',String(scale*(page.userUnit||1)));sheet.style.setProperty('--scale-round-x','1px');sheet.style.setProperty('--scale-round-y','1px');
       const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(viewport.width*ratio));canvas.height=Math.max(1,Math.floor(viewport.height*ratio));canvas.style.width=viewport.width+'px';canvas.style.height=viewport.height+'px';
       const layer=document.createElement('div');layer.className='textLayer';sheet.append(canvas,layer);stage.replaceChildren(sheet);
-      renderTask=page.render({canvas,viewport,transform:[ratio,0,0,ratio,0,0]});await renderTask.promise;
+      renderTask=page.render({canvas,canvasContext:canvas.getContext('2d'),viewport,transform:[ratio,0,0,ratio,0,0]});await renderTask.promise;
       if(!active()||id!==revision)return;
       textLayer=new lib.TextLayer({textContentSource:page.streamTextContent(),container:layer,viewport});await textLayer.render();
     }catch(error){if(active()&&id===revision&&error.name!=='RenderingCancelledException'&&error.name!=='AbortException')message('نمایش این صفحه ممکن نیست.');}
@@ -603,8 +678,21 @@ async function openMediaDocumentPreview(file,dialog,body,request){
     if(plain){const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||'نمایش سند ممکن نیست.');text=await response.text();if(active())render();return;}
     lib=await loadMediaPdfLibrary();if(!active())return;
     const options={cMapUrl:'/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/pdfjs/standard_fonts/',wasmUrl:'/pdfjs/wasm/',iccUrl:'/pdfjs/iccs/',isEvalSupported:false,enableXfa:false};
-    if(ext==='pdf'){task=lib.getDocument({...options,url:endpoint,httpHeaders:{Authorization:'Bearer '+authToken},disableAutoFetch:true,disableStream:true,rangeChunkSize:262144});}
-    else{const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||'تبدیل پیش‌نمایش سند ممکن نیست.');const data=new Uint8Array(await response.arrayBuffer());if(!active())return;task=lib.getDocument({...options,data});}
+    if(ext==='pdf'){
+      const source=await loadMediaPdfSource(lib,file,endpoint,controller.signal,error=>{
+        if(!active())return;
+        controller.abort();pdf=null;message(error.message||'بارگذاری سند ممکن نیست.');sync();
+        if(task)Promise.resolve(task.destroy()).catch(()=>{});
+      });
+      if(!active())return;
+      task=lib.getDocument({...options,...source});
+    }else{
+      const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});
+      if(response.status!==200)throw Error((await response.json().catch(()=>({}))).error||'تبدیل پیش‌نمایش سند ممکن نیست.');
+      const data=new Uint8Array(await response.arrayBuffer());if(!active())return;
+      if(!mediaPdfSignature(data))throw Error('خروجی پیش‌نمایش سند معتبر نیست.');
+      task=lib.getDocument({...options,data});
+    }
     pdf=await task.promise;if(!active())return;total=pdf.numPages;await render();
   }catch(error){if(active()&&error.name!=='AbortError'){message('نمایش سند ممکن نیست. '+(error.message||'فایل اصلی قابل دانلود است.'));sync();}}
 }
@@ -775,8 +863,11 @@ let mediaPreviewRequest=0;
 async function previewInvoiceMedia(file) {
   const dialog=mediaElement('invoiceMediaPreview');
   const body=mediaElement('invoiceMediaPreviewBody');
-  closeInvoiceMediaPreview();
+  resetInvoiceMediaPreviewContent();
   const request=++mediaPreviewRequest;
+  mediaPreviewNavigation={orderId:String(invoiceMedia.orderId),scope:file.media_scope==='serial'?'serial':'invoice',serial:file.serial_number||'',fileId:String(file.id)};
+  updateMediaPreviewNavigation();
+  if(!dialog.open)dialog.showModal();
   const previewTitle=mediaElement('invoiceMediaPreviewTitle');
   previewTitle.textContent=mediaServerName(file);previewTitle.title=mediaServerName(file);
   mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaSize(file.stored_bytes)+' · '+mediaDate(file);
@@ -791,25 +882,69 @@ async function previewInvoiceMedia(file) {
       await openMediaVideoPreview(file,dialog,body,request);
       return;
     }
+    if(!mediaPreviewable(file)){
+      body.append(mediaPreviewMessage('پیش‌نمایش این فرمت در دسترس نیست. فایل اصلی از مدیریت فایل‌ها قابل دانلود است.'));
+      return;
+    }
+    body.append(mediaPreviewMessage('در حال بارگذاری فایل…'));
     const url=await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
     if(request!==mediaPreviewRequest)return;
+    body.replaceChildren();
     const type=String(file.mime_type||'');
-    let element;
     if(type.startsWith('image/')) {
-      element=document.createElement('img');element.alt=mediaServerName(file);
+      const element=document.createElement('img');element.alt=mediaServerName(file);
       const stage=document.createElement('div');stage.className='invoice-media-image-stage';
       stage.append(element);body.append(stage);body.classList.add('is-image-preview');
-      mediaPreviewCleanup=bindMediaImageZoom(stage,element);
-    } else return downloadInvoiceMedia(file);
-    if(!dialog.open)dialog.showModal();
-    element.src=url;
-  }catch(error){if(request===mediaPreviewRequest)showAppToast(error.message||'خطا در نمایش')}
+      const cleanup=bindMediaImageZoom(stage,element);
+      element.onerror=()=>{if(request===mediaPreviewRequest){cleanup();body.replaceChildren(mediaPreviewMessage('نمایش تصویر ممکن نیست؛ فایل اصلی قابل دانلود است.'));}};
+      mediaPreviewCleanup=()=>{element.onerror=null;element.removeAttribute('src');cleanup();};
+      element.src=url;
+    }
+  }catch(error){if(request===mediaPreviewRequest)body.replaceChildren(mediaPreviewMessage(error.message||'خطا در نمایش'))}
 }
-function closeInvoiceMediaPreview() {
+function resetInvoiceMediaPreviewContent() {
   ++mediaPreviewRequest;
   if(mediaPreviewCleanup){mediaPreviewCleanup();mediaPreviewCleanup=null;}
   const body=mediaElement('invoiceMediaPreviewBody');
   if(body){body.replaceChildren();body.classList.remove('is-image-preview','is-pdf-preview','is-video-preview');}
+}
+function closeInvoiceMediaPreview(){
+  resetInvoiceMediaPreviewContent();
+  mediaPreviewNavigation=null;
+  updateMediaPreviewNavigation();
+}
+let mediaPreviewNavigation=null;
+function mediaPreviewMessage(text){
+  const status=document.createElement('div');status.className='invoice-media-document-status';status.setAttribute('role','status');status.textContent=text;return status;
+}
+function mediaNavigationFiles(files,nav){
+  if(!nav)return [];
+  return mediaFilteredFiles(files.filter(file=>nav.scope==='serial'?file.media_scope==='serial'&&String(file.serial_number||'')===nav.serial:file.media_scope!=='serial'));
+}
+function mediaNavigationTarget(files,nav,delta){
+  const group=mediaNavigationFiles(files,nav),index=group.findIndex(file=>String(file.id)===nav?.fileId);
+  return {group,index,target:index>=0?group[index+delta]||null:null};
+}
+function updateMediaPreviewNavigation(){
+  const nav=mediaPreviewNavigation;
+  const {group,index}=mediaNavigationTarget(invoiceMedia.files,nav,0);
+  const previous=mediaElement('invoiceMediaPreviewPrevious'),next=mediaElement('invoiceMediaPreviewNext'),count=mediaElement('invoiceMediaPreviewPosition');
+  if(previous)previous.disabled=index<=0;
+  if(next)next.disabled=index<0||index>=group.length-1;
+  if(count)count.textContent=index>=0?(index+1)+' / '+group.length:'';
+}
+function navigateInvoiceMediaPreview(delta){
+  const nav=mediaPreviewNavigation;
+  if(!nav||nav.orderId!==String(invoiceMedia.orderId))return;
+  const {target}=mediaNavigationTarget(invoiceMedia.files,nav,delta);
+  if(target)previewInvoiceMedia(target);
+}
+function handleMediaPreviewNavigation(event){
+  if(!mediaElement('invoiceMediaPreview')?.open||!mediaPreviewNavigation||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.defaultPrevented)return;
+  if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
+  if(event.target?.closest?.('input,select,textarea,[contenteditable="true"]'))return;
+  event.preventDefault();event.stopPropagation();
+  navigateInvoiceMediaPreview(event.key==='ArrowLeft'?-1:1);
 }
 function sendMediaBinary({method,url,file,headers={},onProgress=()=>{}}) {
   return new Promise((resolve,reject)=>{
@@ -958,5 +1093,6 @@ function bindInvoiceMediaDrop() {
 }
 bindInvoiceMediaDrop();
 mediaElement('invoiceMediaPreview')?.addEventListener('close',closeInvoiceMediaPreview);
+mediaElement('invoiceMediaPreview')?.addEventListener('keydown',handleMediaPreviewNavigation,true);
 
 mediaElement('invoiceMediaEditModal')?.addEventListener('cancel',event=>{if(invoiceMedia.editSaving)event.preventDefault();else invoiceMedia.editingFile=null});

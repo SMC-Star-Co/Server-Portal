@@ -570,6 +570,15 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
       const filepath=storedPath(file.stored_name);
       try{await fsp.access(filepath);}catch{return fail(reply,404,'فایل روی دیسک موجود نیست.');}
       const showInline=ticket.inline && /^(image\/(jpeg|png|webp|gif|bmp)|video\/(mp4|webm|quicktime)|application\/pdf)$/.test(file.mime_type);
+      if(showInline&&file.mime_type==='application/pdf'){
+        try{
+          if(request.headers?.range)return await sendVideoRange(request,reply,filepath,'application/pdf',file.stored_name);
+          const stat=await fsp.stat(filepath);
+          if(!stat.isFile()||!stat.size)return fail(reply,404,'فایل PDF روی دیسک موجود نیست.');
+          reply.code(200).header('Content-Length',String(stat.size)).header('Accept-Ranges','bytes');
+          if(request.method==='HEAD')return reply.header('Content-Type','application/pdf').header('Content-Disposition','inline').header('Cache-Control','private, no-store').send();
+        }catch(error){if(!reply.sent)return fail(reply,404,'خواندن فایل PDF ممکن نیست.');return;}
+      }
       return reply.header('Content-Type',file.mime_type).header('X-Content-Type-Options','nosniff')
         .header('Referrer-Policy','no-referrer').header('Cache-Control','private, no-store')
         .header('Content-Disposition',showInline?'inline':safeDisposition(file.download_name||file.original_name))
