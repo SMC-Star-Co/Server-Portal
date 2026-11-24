@@ -116,8 +116,9 @@ function mockMediaApp() {
     reply.code(403).send({error:'Forbidden'});return false;
   };
   const {registerInvoiceMedia}=require('../src/invoice-media');
-  registerInvoiceMedia(app,{pool,requirePermission,writeActivityLog:async()=>{},broadcastRealtimeEvent:()=>{}});
-  return {handlers,queries};
+  const actions=[],events=[];
+  registerInvoiceMedia(app,{pool,requirePermission,writeActivityLog:async log=>actions.push(log),broadcastRealtimeEvent:(...args)=>events.push(args)});
+  return {handlers,queries,actions,events};
 }
 function mockReply() {
   return {statusCode:200,data:undefined,code(status){this.statusCode=status;return this;},send(body){this.data=body;return body;}};
@@ -164,21 +165,23 @@ test('read-only users can list and download files without the management right',
   assert.match(response.url,/^\/api\/media-transfer\//);
 });
 
-test('a non-technician with management permission can rename a file and changes are logged',async()=>{
-  const {handlers,queries}=mockMediaApp();
+test('a non-technician with management permission can rename a file without activity logging',async()=>{
+  const {handlers,queries,actions,events}=mockMediaApp();
   const request={user:{role:'sales',roles:['sales'],permissions:{'orders.media':true}},params:{id:'2',mediaId:'5'},body:{original_name:'گزارش جدید.pdf'}};
   const reply=mockReply();
   const result=await handlers.get('PATCH /api/orders/:id/media/:mediaId')(request,reply);
   assert.equal(result.success,true);
   assert.equal(result.media.original_name,'گزارش جدید.pdf');
   assert.ok(queries.some(q=>q.sql.includes('UPDATE invoice_media SET original_name=')));
+  assert.equal(actions.length,0);
+  assert.deepEqual(events,[['orders.changed',{order_id:2}]]);
   const bad=mockReply();
   await handlers.get('PATCH /api/orders/:id/media/:mediaId')({...request,body:{original_name:'bad.exe'}},bad);
   assert.equal(bad.statusCode,400);
 });
 
 
-test('replacement streams original bytes, preserves group/ID, and removes old file only after commit', async()=>{
+test('replacement preserves group/ID, removes old bytes after commit and skips activity logging', async()=>{
   const oldStored='a1234567-aaaa-4bbb-8ccc-123456789abc.pdf';
   fs.writeFileSync(storedPath(oldStored),'old content');
   const current={id:5,order_id:2,stored_name:oldStored,thumbnail_name:null,thumbnail_bytes:0,
@@ -200,9 +203,9 @@ test('replacement streams original bytes, preserves group/ID, and removes old fi
   const {registerInvoiceMedia}=require('../src/invoice-media');
   const handlers=new Map(),app={addContentTypeParser(){}};
   for(const method of ['get','post','put','patch','delete'])app[method]=(route,opts,callback)=>handlers.set(method.toUpperCase()+' '+route,callback||opts);
-  const actions=[];
+  const actions=[],events=[];
   registerInvoiceMedia(app,{pool,requirePermission:(req,reply,perm)=>Boolean(req.user.permissions[perm]),
-    writeActivityLog:async log=>actions.push(log),broadcastRealtimeEvent:()=>{}});
+    writeActivityLog:async log=>actions.push(log),broadcastRealtimeEvent:(...args)=>events.push(args)});
   const bytes=Buffer.from('%PDF-1.7\nReplacement contents\n');
   const request={params:{id:'2',mediaId:'5'},user:{id:9,username:'agent',full_name:'کارشناس فروش',permissions:{'orders.media':true}},
     headers:{'x-file-name':encodeURIComponent('new.pdf'),'x-display-name':encodeURIComponent('گزارش نهایی.pdf'),'content-length':String(bytes.length)},
@@ -217,7 +220,8 @@ test('replacement streams original bytes, preserves group/ID, and removes old fi
   assert.equal(updateArgs[8],5);
   assert.deepEqual(fs.readFileSync(storedPath(updateArgs[0])),bytes);
   assert.equal(fs.existsSync(storedPath(oldStored)),false);
-  assert.equal(actions[0].action_type,'order.media_edited');
+  assert.equal(actions.length,0);
+  assert.deepEqual(events,[['orders.changed',{order_id:2}]]);
 });
 
 test('PDF viewer uses authenticated media routes, validates pages and returns PNG without changing originals',async()=>{
@@ -244,4 +248,12 @@ test('PDF viewer uses authenticated media routes, validates pages and returns PN
   const invalid=makeReply();await page({...request,params:{...request.params,page:'../1'}},invalid);assert.equal(invalid.statusCode,400);
   const other=makeReply();await meta({...request,params:{...request.params,id:'3'}},other);assert.equal(other.statusCode,404);
   assert.deepEqual(fs.readFileSync(storedPath(stored)),original);
+});
+
+// All mutation handlers must remain free of activity logging, including upload and delete.
+test('media mutation routes do not reference the activity logger or insert activity rows',()=>{
+  const source=fs.readFileSync(require.resolve('../src/invoice-media'),'utf8');
+  assert.doesNotMatch(source,/writeActivityLog|INSERT\s+INTO\s+activity_logs/i);
+  const appSource=fs.readFileSync(require.resolve('../src/app'),'utf8');
+  assert.doesNotMatch(appSource,/'order\.media_(?:uploaded|edited|deleted)'/);
 });

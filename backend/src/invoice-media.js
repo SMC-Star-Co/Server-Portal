@@ -229,7 +229,7 @@ async function withPdfPreview(work){
   pdfPreviewJobs++;
   try{return await work();}finally{pdfPreviewJobs--;}
 }
-function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent,pdfCommand=runPdfCommand}) {
+function registerInvoiceMedia(fastify,{pool,requirePermission,broadcastRealtimeEvent,pdfCommand=runPdfCommand}) {
   registerDocumentPreview(fastify,{pool,storedPath,validId,fail});
   // Keep the request as a stream: a 500-MB upload must not be buffered in Node memory.
   fastify.addContentTypeParser('application/octet-stream', (request, payload, done) => done(null,payload));
@@ -306,9 +306,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
         const inserted=await client.query('INSERT INTO invoice_media (order_id,stored_name,original_name,download_name,mime_type,original_bytes,stored_bytes,source_hash,compression_mode,uploaded_by,uploader_name,media_scope,serial_number,sequence_number) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',
           [id,finalName,original,name,mime,bytes,bytes,sourceHash,'original',request.user.id,request.user.full_name||request.user.username,scope,serial,seq]);
         await client.query('COMMIT');committed=true;
-        await writeActivityLog({request,action_type:'order.media_uploaded',entity_type:'order',entity_id:String(id),
-          invoice_number:current.rows[0].invoice_number,message:'فایل فنی به فاکتور اضافه شد.',
-          details:{filename:name,scope,serial,stored_bytes:bytes}});
         broadcastRealtimeEvent('orders.changed',{order_id:id});
         return {success:true,media_id:inserted.rows[0].id,download_name:name,stored_bytes:bytes};
       }catch(e){
@@ -382,10 +379,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     if(!wanted)return fail(reply,400,'نام فایل معتبر نیست؛ پسوند فایل را تغییر ندهید (حداکثر ۱۸۰ نویسه).');
     const saved=await pool.query('UPDATE invoice_media SET original_name=$1 WHERE id=$2 AND order_id=$3 RETURNING id,original_name',[wanted,mid,id]);
     if(!saved.rowCount)return fail(reply,404,'فایل یافت نشد.');
-    const order=await pool.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
-    await writeActivityLog({request,action_type:'order.media_edited',entity_type:'order',entity_id:String(id),
-      invoice_number:order.rows[0]?.invoice_number,message:'نام نمایشی فایل اصلاح شد.',
-      details:{media_id:mid,before:current.rows[0].original_name,after:wanted}});
     broadcastRealtimeEvent('orders.changed',{order_id:id});
     return {success:true,media:saved.rows[0]};
   });
@@ -455,9 +448,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
           [newStored,displayName,download,mime,bytes,sourceHash,request.user.id,request.user.full_name||request.user.username,mid,id]);
         await client.query('COMMIT');committed=true;
         await cleanMedia([before]);
-        await writeActivityLog({request,action_type:'order.media_edited',entity_type:'order',entity_id:String(id),
-          invoice_number:order.rows[0].invoice_number,message:'محتوای فایل جایگزین شد.',
-          details:{media_id:mid,old_filename:before.download_name,new_filename:download,stored_bytes:bytes}});
         broadcastRealtimeEvent('orders.changed',{order_id:id});
         return {success:true,media_id:mid,download_name:download,stored_bytes:bytes};
       }catch(error){
@@ -479,9 +469,6 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     const result=await pool.query('DELETE FROM invoice_media WHERE id=$1 AND order_id=$2 RETURNING *',[mid,id]);
     if(!result.rowCount)return fail(reply,404,'فایل یافت نشد.');
     await cleanMedia(result.rows);
-    const invoice=await pool.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
-    await writeActivityLog({request,action_type:'order.media_deleted',entity_type:'order',entity_id:String(id),
-      invoice_number:invoice.rows[0]?.invoice_number,message:'فایل فنی از فاکتور حذف شد.',details:{filename:result.rows[0].download_name}});
     broadcastRealtimeEvent('orders.changed',{order_id:id});
     return {success:true};
   });

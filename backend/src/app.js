@@ -65,10 +65,7 @@ const ALLOWED_ACTIVITY_ACTIONS = new Set([
   'order.related_updated',
   'order.priority_changed',
   'order.updated',
-  'order.deleted',
-  'order.media_uploaded',
-  'order.media_edited',
-  'order.media_deleted'
+  'order.deleted'
 ]);
 
 async function writeActivityLog(payload = {}, client = pool) {
@@ -807,7 +804,7 @@ fastify.addHook('preHandler', async (request, reply) => {
   await authenticateRequest(request, reply);
 });
 
-registerInvoiceMedia(fastify, { pool, requirePermission, writeActivityLog, broadcastRealtimeEvent });
+registerInvoiceMedia(fastify, { pool, requirePermission, broadcastRealtimeEvent });
 
 fastify.get('/api/auth/me', async (request) => {
   return { user: request.user };
