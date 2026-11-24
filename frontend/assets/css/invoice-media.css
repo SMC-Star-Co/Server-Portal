@@ -154,7 +154,7 @@ dialog.invoice-media-preview::backdrop{background:rgba(4,11,24,.88)}
 .invoice-media-preview-actions{display:flex;gap:7px;flex-shrink:0}.invoice-media-preview-actions .secondary-btn{background:#223551;border:1px solid #425a7d;color:#eff5ff;font-size:11px;padding:8px 11px}.invoice-media-preview-actions [hidden]{display:none!important}
 .invoice-media-preview-body{width:min(1200px,94vw);height:min(77vh,780px);max-height:77vh;overflow:auto;display:flex;align-items:center;justify-content:center;background:#0c1523;padding:12px}
 .invoice-media-preview-body img,.invoice-media-preview-body video{display:block;width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;margin:auto}.invoice-media-preview-body iframe{display:block;width:100%;height:100%;border:0;background:#fff}
-.invoice-media-preview-body.is-actual-size{display:block;text-align:center}.invoice-media-preview-body.is-actual-size img{max-width:none;max-height:none;width:auto;height:auto;object-fit:none;margin:0 auto}
+
 
 @media(max-width:1120px){
  .invoice-media-modal-card .invoice-media-modal-body{grid-template-columns:minmax(260px,290px) minmax(0,1fr)}
@@ -258,4 +258,36 @@ dialog.invoice-media-preview::backdrop{background:rgba(4,11,24,.88)}
 @media(max-width:380px){
  .invoice-media-file-actions button{padding:4px 5px;font-size:8px;}
  .invoice-media-serial-selector{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+/* Media workspace: responsive larger cards, two metadata rows, click-to-zoom. */
+.invoice-media-modal-card{width:min(1720px,calc(100vw - 28px));max-width:1720px;height:min(1080px,95vh);}
+.invoice-media-modal-card .invoice-media-modal-body{grid-template-columns:minmax(255px,290px) minmax(0,1fr);}
+.invoice-media-modal-card .invoice-media-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,265px),1fr));gap:12px;align-items:stretch;}
+.invoice-media-modal-card .invoice-media-file-thumb{aspect-ratio:7/5;max-height:clamp(230px,37vh,390px);}
+.invoice-media-modal-card .invoice-media-file-meta{padding:9px 10px 7px;gap:6px;}
+.invoice-media-file-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
+.invoice-media-modal-card .invoice-media-file-heading .invoice-media-file-name{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.invoice-media-modal-card .invoice-media-file-size{flex:none;font-size:10px;font-weight:750;white-space:nowrap;}
+.invoice-media-modal-card .invoice-media-file-detail{display:flex;flex-wrap:nowrap;justify-content:space-between;align-items:center;gap:6px;font-size:10px;min-width:0;}
+.invoice-media-modal-card .invoice-media-file-date{flex:none;}
+.invoice-media-modal-card .invoice-media-uploaded-by{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;color:#62758e;}
+.invoice-media-modal-card .invoice-media-file-actions{padding:5px 7px 6px;gap:5px;}
+.invoice-media-modal-card .invoice-media-file-actions button{font-size:10px;min-height:0;line-height:1.25;padding:3px 7px;border-radius:6px;}
+dialog.invoice-media-preview{width:min(1720px,96vw);max-width:96vw;max-height:96vh;}
+.invoice-media-preview-body{width:100%;box-sizing:border-box;height:min(86vh,1050px);max-height:86vh;}
+.invoice-media-preview-body.is-image-preview{padding:0;overflow:hidden;}
+.invoice-media-image-stage{position:relative;width:100%;height:100%;overflow:hidden;isolation:isolate;touch-action:none;user-select:none;}
+.invoice-media-image-stage img{position:absolute;left:50%;top:50%;max-width:none;max-height:none;margin:0;object-fit:contain;transform-origin:center;cursor:zoom-in;user-select:none;touch-action:none;-webkit-user-drag:none;}
+.invoice-media-image-stage.is-zoomed img{cursor:grab;}
+.invoice-media-image-stage.is-panning img{cursor:grabbing;}
+.invoice-media-image-stage img:focus-visible{outline:2px solid #8eb8ff;outline-offset:-2px;}
+@media(max-width:850px){
+ .invoice-media-modal-card .invoice-media-modal-body{grid-template-columns:minmax(220px,245px) minmax(0,1fr);}
+ .invoice-media-modal-card .invoice-media-list{grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));}
+}
+@media(max-width:740px){
+ .invoice-media-modal-card{width:calc(100vw - 12px);height:96vh;max-height:96vh;}
+ .invoice-media-modal-card .invoice-media-list{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;}
+ .invoice-media-modal-card .invoice-media-file-thumb{max-height:clamp(230px,40vh,360px);}
+ .invoice-media-preview-body{height:80vh;max-height:80vh;}
 }

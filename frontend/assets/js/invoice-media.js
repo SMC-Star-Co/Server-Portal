@@ -26,7 +26,15 @@ function mediaServerName(file) {
   return file.download_name || 'فایل';
 }
 function mediaFilteredFiles(files) {
-  return [...files].sort((a,b)=>Number(b.id)-Number(a.id));
+  // Each group has its own immutable sequence. Old unnumbered rows retain insertion order.
+  const sequence=file=>{
+    const n=Number(file.sequence_number);
+    if(Number.isSafeInteger(n)&&n>0)return n;
+    const match=String(file.download_name||'').match(/-(\d+)\.[^.]+$/);
+    const fallback=match?Number(match[1]):0;
+    return Number.isSafeInteger(fallback)&&fallback>0?fallback:0;
+  };
+  return [...files].sort((a,b)=>sequence(a)-sequence(b)||Number(a.id)-Number(b.id));
 }
 function mediaIcon(ext) {
   const code = String(ext || '').toLowerCase();
@@ -212,10 +220,10 @@ async function refreshInvoiceMedia() {
   if (!id) return;
   const generation = ++invoiceMedia.generation;
   const root = mediaElement('invoiceMediaSerialGroups');
-  if (root) root.textContent = 'در حال دریافت فهرست فایل‌ها...';
+  if (root) root.textContent = 'در حال بارگذاری فهرست فایل‌ها...';
   try {
     const response = await apiFetch(API_URL + '/orders/' + id + '/media',{cache:'no-store'});
-    if (!response.ok) throw new Error('دریافت فایل‌های فاکتور ناموفق بود.');
+    if (!response.ok) throw new Error('بارگذاری فهرست فایل‌های فاکتور ناموفق بود.');
     const data = await response.json();
     if (invoiceMedia.generation !== generation || invoiceMedia.orderId !== id) return;
     invoiceMedia.invoice = String(data.invoice_number || '');
@@ -248,7 +256,7 @@ async function refreshInvoiceMedia() {
   } catch(error) {
     if (generation === invoiceMedia.generation) {
       if(root) root.textContent='بارگذاری فایل‌ها ناموفق بود؛ دوباره تلاش کنید.';
-      if(root) root.textContent = error.message || 'خطا در دریافت اطلاعات';
+      if(root) root.textContent = error.message || 'خطا در بارگذاری اطلاعات';
 
     }
   }
@@ -308,15 +316,18 @@ function drawMediaRows(container,files) {
     const meta=document.createElement('div');meta.className='invoice-media-file-meta';
     const name=document.createElement('strong');name.className='invoice-media-file-name';
     name.textContent=mediaServerName(file);name.title=mediaServerName(file);name.dir='ltr';
+    const nameRow=document.createElement('div');nameRow.className='invoice-media-file-heading';
     const sub=document.createElement('div');sub.className='invoice-media-file-detail';
     const size=document.createElement('span');size.className='invoice-media-file-size';size.dir='ltr';size.textContent=mediaSize(file.stored_bytes);
     const date=document.createElement('time');date.className='invoice-media-file-date';date.dir='ltr';date.textContent=mediaDate(file);
     if(file.created_at)date.dateTime=String(file.created_at);
-    sub.append(date,size);meta.append(name,sub);
-    if(file.uploader_name){const by=document.createElement('small');by.className='invoice-media-uploaded-by';by.textContent='ثبت: '+file.uploader_name;meta.append(by)}
+    nameRow.append(name,size);
+    const by=document.createElement('small');by.className='invoice-media-uploaded-by';
+    by.textContent='ثبت : '+(file.uploader_name||'نامشخص');by.title=by.textContent;
+    sub.append(date,by);meta.append(nameRow,sub);
     const actions=document.createElement('div');actions.className='invoice-media-file-actions';
     if(mediaPreviewable(file))actions.append(mediaButton('نمایش','invoice-media-action-view',()=>previewInvoiceMedia(file)));
-    actions.append(mediaButton('دریافت','invoice-media-action-download',()=>downloadInvoiceMedia(file)));
+    actions.append(mediaButton('دانلود','invoice-media-action-download',()=>downloadInvoiceMedia(file)));
     if(invoiceMedia.canEdit)actions.append(mediaButton('ویرایش','invoice-media-action-edit',()=>openInvoiceMediaEdit(file)));
     if(invoiceMedia.canDelete)actions.append(mediaButton('حذف','invoice-media-action-delete',()=>deleteInvoiceMedia(file)));
     card.append(visual,meta,actions);container.append(card);
@@ -371,7 +382,7 @@ function drawInvoiceMedia() {
     const label=document.createElement('span');label.textContent='پرونده سرور';
     const current=document.createElement('strong');current.textContent=mediaSerialLabel(selected);
     description.append(label,current);top.append(description);
-    if(selectedAll.length)top.append(mediaButton('دریافت همه (ZIP)','secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected)));
+    if(selectedAll.length)top.append(mediaButton('دانلود همه (ZIP)','secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected)));
     const gallery=document.createElement('div');gallery.className='invoice-media-list';drawMediaRows(gallery,selectedFiles);
     panel.append(top,gallery);groups.append(panel);
   }
@@ -402,7 +413,7 @@ async function requestMediaTicket(payload) {
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
   });
   const data=await res.json();
-  if(!res.ok || !data.url)throw new Error(data.error||'امکان دریافت لینک وجود ندارد.');
+  if(!res.ok || !data.url)throw new Error(data.error||'امکان ساخت لینک دانلود وجود ندارد.');
   return data.url;
 }
 function followMediaLink(url,download) {
@@ -413,44 +424,127 @@ function followMediaLink(url,download) {
 }
 async function downloadInvoiceMedia(file) {
   try{followMediaLink(await requestMediaTicket({kind:'file',file_id:file.id,inline:false}),true)}
-  catch(error){showAppToast(error.message||'خطا در دریافت فایل')}
+  catch(error){showAppToast(error.message||'خطا در دانلود فایل')}
 }
 async function downloadInvoiceMediaGroup(scope,serial) {
   try{followMediaLink(await requestMediaTicket({kind:'zip',scope,serial_number:scope==='serial'?serial:undefined}),true)}
-  catch(error){showAppToast(error.message||'خطا در دریافت گروهی')}
+  catch(error){showAppToast(error.message||'خطا در دانلود گروهی')}
 }
+// Click to zoom at the pointer; drag a zoomed image without toggling zoom.
+function bindMediaImageZoom(stage,img) {
+  let scale=1,offsetX=0,offsetY=0,fit=1,baseWidth=0,baseHeight=0,drag=null;
+  let disposed=false;
+  const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
+  function render(){
+    const limitX=Math.max(0,(baseWidth*scale-stage.clientWidth)/2);
+    const limitY=Math.max(0,(baseHeight*scale-stage.clientHeight)/2);
+    offsetX=clamp(offsetX,-limitX,limitX);
+    offsetY=clamp(offsetY,-limitY,limitY);
+    img.style.transform='translate(-50%, -50%) translate('+offsetX+'px, '+offsetY+'px) scale('+scale+')';
+    stage.classList.toggle('is-zoomed',scale>1);
+    stage.classList.toggle('is-panning',Boolean(drag?.moved));
+    img.setAttribute('aria-pressed',String(scale>1));
+  }
+  function layout(){
+    if(disposed||!img.naturalWidth||!img.naturalHeight||!stage.clientWidth||!stage.clientHeight)return;
+    fit=Math.min(1,Math.max(1,stage.clientWidth-16)/img.naturalWidth,Math.max(1,stage.clientHeight-16)/img.naturalHeight);
+    baseWidth=img.naturalWidth*fit;baseHeight=img.naturalHeight*fit;
+    img.style.width=baseWidth+'px';img.style.height=baseHeight+'px';
+    render();
+  }
+  function toggle(clientX,clientY){
+    if(!baseWidth||!baseHeight)return;
+    if(scale>1){scale=1;offsetX=0;offsetY=0;}
+    else{
+      const next=Math.min(5,Math.max(2,1/fit));
+      const rect=stage.getBoundingClientRect();
+      const x=clientX-rect.left-stage.clientWidth/2;
+      const y=clientY-rect.top-stage.clientHeight/2;
+      scale=next;offsetX=x*(1-next);offsetY=y*(1-next);
+    }
+    render();
+  }
+  function down(e){
+    if(e.isPrimary===false||e.button!==0||!baseWidth)return;
+    e.preventDefault();
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:offsetX,startY:offsetY,moved:false};
+    img.setPointerCapture?.(e.pointerId);
+  }
+  function move(e){
+    if(!drag||drag.id!==e.pointerId)return;
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(Math.hypot(dx,dy)>4)drag.moved=true;
+    if(scale>1&&drag.moved){offsetX=drag.startX+dx;offsetY=drag.startY+dy;render();}
+  }
+  function up(e){
+    if(!drag||drag.id!==e.pointerId)return;
+    const moved=drag.moved||Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>4;
+    drag=null;
+    if(img.hasPointerCapture?.(e.pointerId))img.releasePointerCapture(e.pointerId);
+    if(!moved)toggle(e.clientX,e.clientY);
+    else render();
+  }
+  function cancel(e){
+    if(drag&&drag.id===e.pointerId){drag=null;render();}
+  }
+  function key(e){
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    e.preventDefault();
+    const rect=stage.getBoundingClientRect();
+    toggle(rect.left+stage.clientWidth/2,rect.top+stage.clientHeight/2);
+  }
+  img.draggable=false;img.tabIndex=0;img.setAttribute('role','button');
+  img.setAttribute('aria-label',(img.alt||'تصویر')+'؛ کلیک برای بزرگنمایی یا بازگشت');
+  img.setAttribute('aria-pressed','false');
+  img.addEventListener('load',layout);
+  img.addEventListener('pointerdown',down);img.addEventListener('pointermove',move);
+  img.addEventListener('pointerup',up);img.addEventListener('pointercancel',cancel);
+  img.addEventListener('lostpointercapture',cancel);img.addEventListener('keydown',key);
+  const observer=typeof ResizeObserver==='function'?new ResizeObserver(layout):null;
+  if(observer)observer.observe(stage);else window.addEventListener('resize',layout);
+  if(img.complete)layout();
+  return ()=>{
+    disposed=true;drag=null;
+    observer?.disconnect();if(!observer)window.removeEventListener('resize',layout);
+    img.removeEventListener('load',layout);
+    img.removeEventListener('pointerdown',down);img.removeEventListener('pointermove',move);
+    img.removeEventListener('pointerup',up);img.removeEventListener('pointercancel',cancel);
+    img.removeEventListener('lostpointercapture',cancel);img.removeEventListener('keydown',key);
+  };
+}
+let mediaPreviewCleanup=null;
+let mediaPreviewRequest=0;
 async function previewInvoiceMedia(file) {
   const dialog=mediaElement('invoiceMediaPreview');
   const body=mediaElement('invoiceMediaPreviewBody');
-  body.replaceChildren();body.classList.remove('is-actual-size');
+  closeInvoiceMediaPreview();
+  const request=++mediaPreviewRequest;
   mediaElement('invoiceMediaPreviewTitle').textContent=mediaServerName(file);
   mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaDate(file)+' · '+mediaSize(file.stored_bytes);
-  const zoom=mediaElement('invoiceMediaActualSize');
-  zoom.hidden=true;zoom.textContent='اندازه واقعی (۱۰۰٪)';
   try{
     const url=await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
+    if(request!==mediaPreviewRequest)return;
     const type=String(file.mime_type||'');
     let element;
     if(type.startsWith('image/')) {
       element=document.createElement('img');element.alt=mediaServerName(file);
-      zoom.hidden=false;
+      const stage=document.createElement('div');stage.className='invoice-media-image-stage';
+      stage.append(element);body.append(stage);body.classList.add('is-image-preview');
+      mediaPreviewCleanup=bindMediaImageZoom(stage,element);
     } else if(type.startsWith('video/')) {
-      element=document.createElement('video');element.controls=true;element.preload='metadata';
+      element=document.createElement('video');element.controls=true;element.preload='metadata';body.append(element);
     } else if(type==='application/pdf') {
-      element=document.createElement('iframe');element.title=mediaServerName(file);
+      element=document.createElement('iframe');element.title=mediaServerName(file);body.append(element);
     } else return downloadInvoiceMedia(file);
-    element.src=url;body.append(element);
-    dialog.showModal();
-  }catch(error){showAppToast(error.message||'خطا در نمایش')}
-}
-function toggleInvoiceMediaActualSize() {
-  const body=mediaElement('invoiceMediaPreviewBody');
-  const actual=body.classList.toggle('is-actual-size');
-  mediaElement('invoiceMediaActualSize').textContent=actual?'تناسب با صفحه':'اندازه واقعی (۱۰۰٪)';
+    if(!dialog.open)dialog.showModal();
+    element.src=url;
+  }catch(error){if(request===mediaPreviewRequest)showAppToast(error.message||'خطا در نمایش')}
 }
 function closeInvoiceMediaPreview() {
+  ++mediaPreviewRequest;
+  if(mediaPreviewCleanup){mediaPreviewCleanup();mediaPreviewCleanup=null;}
   const body=mediaElement('invoiceMediaPreviewBody');
-  if(body) {body.replaceChildren();body.classList.remove('is-actual-size')}
+  if(body){body.replaceChildren();body.classList.remove('is-image-preview');}
 }
 function sendMediaBinary({method,url,file,headers={},onProgress=()=>{}}) {
   return new Promise((resolve,reject)=>{

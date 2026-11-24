@@ -848,11 +848,11 @@
                     <div>
                         <div class="invoice-media-eyebrow">پرونده دیجیتال / مستندات</div>
                         <h3 class="portal-modal-title" id="invoiceMediaModalTitle">مدیریت فایل‌های فاکتور</h3>
-                        <div class="portal-modal-subtitle">مرور، پیش‌نمایش و دریافت مدارک مرتبط با فاکتور و سریال سرورها</div>
+                        <div class="portal-modal-subtitle">مرور، پیش‌نمایش و دانلود مدارک مرتبط با فاکتور و سریال سرورها</div>
                     </div>
                 </div>
                 <div class="invoice-media-head-actions">
-                    <button type="button" class="invoice-media-head-refresh" onclick="refreshInvoiceMedia()" title="دریافت آخرین تغییرات"><span data-portal-icon="refresh-cw"></span> بروزرسانی</button>
+                    <button type="button" class="invoice-media-head-refresh" onclick="refreshInvoiceMedia()" title="بروزرسانی فهرست"><span data-portal-icon="refresh-cw"></span> بروزرسانی</button>
                     <button type="button" onclick="closeInvoiceMediaModal()" class="close-btn" aria-label="بستن">×</button>
                 </div>
             </div>
@@ -860,13 +860,13 @@
                 <section class="invoice-media-composer" id="invoiceMediaUploader" aria-label="بارگذاری مدارک" hidden>
                     <div class="invoice-media-panel-heading">
                         <div><span class="invoice-media-section-overline">افزودن مستندات</span><strong>بارگذاری فایل جدید</strong></div>
-                        <span class="invoice-media-cap">حداکثر ۵۰۰ MB</span>
+                        <span class="invoice-media-cap">حداکثر حجم <bdi dir="ltr">500MB</bdi></span>
                     </div>
                     <div class="invoice-media-tabbar" role="group" aria-label="دسته فایل">
                         <button type="button" id="invoiceMediaScopeSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaUploadScope('serial')">مربوط به سرور</button>
                         <button type="button" id="invoiceMediaScopeInvoice" class="invoice-media-tab" onclick="setInvoiceMediaUploadScope('invoice')">مربوط به فاکتور</button>
                     </div>
-                    <div id="invoiceMediaInvoicePanel" hidden><p class="invoice-media-context">برای اسناد عمومی همین فاکتور؛ بدون نیاز به انتخاب سریال.</p></div>
+                    <div id="invoiceMediaInvoicePanel" hidden></div>
                     <div id="invoiceMediaSerialPanel">
                         <label class="invoice-media-label" for="invoiceMediaSerialSelect">سریال سرور</label>
                         <select id="invoiceMediaSerialSelect" onchange="updateInvoiceMediaTarget()"></select>
@@ -892,13 +892,13 @@
                     <div id="invoiceMediaProgress" class="invoice-media-progress" aria-live="polite"></div>
                 </section>
                 <section id="invoiceMediaBrowser" class="invoice-media-browser" aria-label="جست‌وجو و مشاهده فایل‌ها">
-                    <span id="invoiceMediaPermissionHint" class="invoice-media-readonly" hidden>فقط مشاهده و دریافت</span>
+                    <span id="invoiceMediaPermissionHint" class="invoice-media-readonly" hidden>فقط مشاهده و دانلود</span>
                     <div class="invoice-media-tabbar invoice-media-view-tabs" role="group" aria-label="محل فایل‌ها">
                         <button type="button" id="invoiceMediaViewSerial" class="invoice-media-tab is-active" onclick="setInvoiceMediaView('serial')">سرورها <span id="invoiceMediaSerialCount">۰</span></button>
                         <button type="button" id="invoiceMediaViewInvoice" class="invoice-media-tab" onclick="setInvoiceMediaView('invoice')">فاکتور <span id="invoiceMediaInvoiceCount">۰</span></button>
                     </div>
                     <div id="invoiceMediaInvoiceView" hidden>
-                        <div class="invoice-media-view-heading"><span>اسناد عمومی فاکتور</span><button type="button" id="invoiceMediaInvoiceDownloadAll" class="secondary-btn" hidden onclick="downloadInvoiceMediaGroup('invoice')">دریافت همه (ZIP)</button></div>
+                        <div class="invoice-media-view-heading"><span>اسناد عمومی فاکتور</span><button type="button" id="invoiceMediaInvoiceDownloadAll" class="secondary-btn" hidden onclick="downloadInvoiceMediaGroup('invoice')">دانلود همه (ZIP)</button></div>
                         <div id="invoiceMediaInvoiceList" class="invoice-media-list"></div>
                     </div>
                     <div id="invoiceMediaSerialView">
@@ -921,7 +921,7 @@
                 <strong id="invoiceMediaEditCurrentName" class="invoice-media-edit-current-name" dir="ltr"></strong>
                 <label for="invoiceMediaReplaceInput" class="invoice-media-replace-label">انتخاب فایل جایگزین</label>
                 <input id="invoiceMediaReplaceInput" type="file" required accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.gif,.bmp,.tif,.tiff,.mp4,.m4v,.mov,.webm,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.log,.rtf,.odt,.ods" onchange="onInvoiceMediaReplacementSelected()">
-                <div id="invoiceMediaEditHelp" class="invoice-media-edit-help">شناسه و محل فایل حفظ می‌شود و نام دریافت بر اساس پسوند فایل جدید تنظیم خواهد شد.</div>
+                <div id="invoiceMediaEditHelp" class="invoice-media-edit-help">شناسه و محل فایل حفظ می‌شود و نام دانلود بر اساس پسوند فایل جدید تنظیم خواهد شد.</div>
                 <div id="invoiceMediaEditProgress" class="invoice-media-edit-progress" aria-live="polite"></div>
             </div>
             <div class="invoice-media-edit-footer"><button type="button" class="secondary-btn" onclick="closeInvoiceMediaEdit()">انصراف</button><button type="submit" id="invoiceMediaEditSave" class="primary-submit">ذخیره تغییرات</button></div>
@@ -935,7 +935,6 @@
                 <span id="invoiceMediaPreviewSubtitle"></span>
             </div>
             <div class="invoice-media-preview-actions">
-                <button type="button" id="invoiceMediaActualSize" class="secondary-btn" onclick="toggleInvoiceMediaActualSize()" hidden>اندازه واقعی (۱۰۰٪)</button>
                 <button type="button" class="secondary-btn" onclick="document.getElementById('invoiceMediaPreview').close()">بستن</button>
             </div>
         </div>
