@@ -521,6 +521,10 @@
                                 <input id="archive_invoice_number" type="number" min="1" oninput="if(this.value < 1) this.value = '';" placeholder="شماره فاکتور">
                             </div>
                             <div class="field">
+                                <label for="archive_serial_number">شماره سریال</label>
+                                <input id="archive_serial_number" type="text" dir="ltr" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="شماره سریال" onkeydown="if(event.key === 'Enter' && !event.isComposing){event.preventDefault(); applyArchiveSearch();}">
+                            </div>
+                            <div class="field">
                                 <label>تاریخ</label>
                                 <div class="segmented-date-field" aria-label="تاریخ شمسی">
                                     <input id="archive_date_year" type="text" inputmode="numeric" maxlength="4" placeholder="سال" oninput="handleDatePartInput(this, 'archive_date_month', 4)" onblur="normalizeDatePartOnBlur(this, 4)">

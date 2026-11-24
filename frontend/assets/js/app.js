@@ -20,7 +20,8 @@ const API_URL = '/api';
         const DEFAULT_SECURITY_ROLES = [
             { code: 'admin', name: 'ادمین' },
             { code: 'technician', name: 'تکنسین فنی' },
-            { code: 'sales', name: 'کارشناس فروش' }
+            { code: 'sales', name: 'کارشناس فروش' },
+            { code: 'warehouse', name: 'انباردار' }
         ];
         const DEFAULT_SECURITY_PERMISSIONS = [
             { code: 'menus.home', name: 'نمایش منوی صفحه اصلی', group: 'منوها' },
@@ -73,6 +74,14 @@ const API_URL = '/api';
                 'menus.archive': true,
                 'menus.account': true,
                 'orders.view': true,
+                'archive.view': true,
+                'account.change_password': true
+            },
+            warehouse: {
+                'menus.home': true,
+                'orders.view': true,
+                'menus.archive': true,
+                'menus.account': true,
                 'archive.view': true,
                 'account.change_password': true
             }
@@ -454,6 +463,7 @@ const API_URL = '/api';
             if (role === 'admin') return 'ادمین';
             if (role === 'technician') return 'تکنسین فنی';
             if (role === 'sales') return 'کارشناس فروش';
+            if (role === 'warehouse') return 'انباردار';
             return role || '-';
         }
 
@@ -657,6 +667,7 @@ const API_URL = '/api';
         function getRoleClass(role) {
             if (role === 'admin') return 'role-admin';
             if (role === 'technician') return 'role-technician';
+            if (role === 'warehouse') return 'role-warehouse';
             return 'role-sales';
         }
 
@@ -671,7 +682,8 @@ const API_URL = '/api';
             const groups = [
                 { role: 'admin', title: 'ادمین' },
                 { role: 'technician', title: 'تکنسین‌های فنی' },
-                { role: 'sales', title: 'کارشناسان فروش' }
+                { role: 'sales', title: 'کارشناسان فروش' },
+                { role: 'warehouse', title: 'انبارداران' }
             ];
 
             container.innerHTML = groups.map(group => {
@@ -2503,6 +2515,7 @@ const API_URL = '/api';
             return {
                 seller_id: document.getElementById('archive_seller_id')?.value || '',
                 invoice_number: document.getElementById('archive_invoice_number')?.value || '',
+                serial_number: normalizeText(document.getElementById('archive_serial_number')?.value || ''),
                 date: readSegmentedJalaliDate('archive_date'),
                 buyer_name: normalizeText(document.getElementById('archive_buyer_name')?.value || ''),
                 city_id: document.getElementById('archive_city_id')?.value || '',
@@ -2520,6 +2533,7 @@ const API_URL = '/api';
 
             if (filters.seller_id && String(order.seller_id || '') !== String(filters.seller_id)) return false;
             if (filters.invoice_number && invoice !== String(filters.invoice_number)) return false;
+            if (filters.serial_number && !splitCommaList(order.serials).some(serial => normalizeText(serial).includes(filters.serial_number))) return false;
             if (filters.date && orderDate !== filters.date) return false;
             if (filters.buyer_name && !buyer.includes(filters.buyer_name)) return false;
             if (filters.city_id && String(order.city_id || '') !== String(filters.city_id)) return false;
@@ -2537,11 +2551,19 @@ const API_URL = '/api';
 
         function applyArchiveSearch() {
             archiveSearchApplied = true;
+            // Expand matching date groups so search results are immediately visible.
+            for (const order of getArchiveFilteredOrders()) {
+                const {year, month, day} = getOrderDateParts(order);
+                const yearId = sanitizeGroupId(`year-${year}`);
+                const monthId = sanitizeGroupId(`${yearId}-month-${month}`);
+                const dayId = sanitizeGroupId(`${monthId}-day-${day}`);
+                archiveGroupState[yearId] = archiveGroupState[monthId] = archiveGroupState[dayId] = true;
+            }
             renderArchive();
         }
 
         function clearArchiveSearch() {
-            ['archive_seller_id', 'archive_invoice_number', 'archive_buyer_name', 'archive_city_id', 'archive_device_model', 'archive_quantity', 'archive_config_type', 'archive_warehouse_id'].forEach(id => {
+            ['archive_seller_id', 'archive_invoice_number', 'archive_serial_number', 'archive_buyer_name', 'archive_city_id', 'archive_device_model', 'archive_quantity', 'archive_config_type', 'archive_warehouse_id'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });

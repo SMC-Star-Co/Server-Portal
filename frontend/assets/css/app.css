@@ -2116,6 +2116,7 @@
         .role-admin { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
         .role-technician { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
         .role-sales { background: #ecfdf5; color: #15803d; border-color: #bbf7d0; }
+        .role-warehouse { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
         .active-yes { background: #ecfdf5; color: #15803d; border-color: #bbf7d0; }
         .active-no { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
 

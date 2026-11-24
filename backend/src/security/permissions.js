@@ -1,7 +1,8 @@
 const USER_ROLES = [
   { code: 'admin', name: 'ادمین' },
   { code: 'technician', name: 'تکنسین فنی' },
-  { code: 'sales', name: 'کارشناس فروش' }
+  { code: 'sales', name: 'کارشناس فروش' },
+  { code: 'warehouse', name: 'انباردار' }
 ];
 
 const USER_ROLE_CODES = USER_ROLES.map(role => role.code);
@@ -61,6 +62,14 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'menus.archive': true,
     'menus.account': true,
     'orders.view': true,
+    'archive.view': true,
+    'account.change_password': true
+  },
+  warehouse: {
+    'menus.home': true,
+    'orders.view': true,
+    'menus.archive': true,
+    'menus.account': true,
     'archive.view': true,
     'account.change_password': true
   }

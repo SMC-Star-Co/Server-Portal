@@ -929,7 +929,7 @@ fastify.get('/api/users', async (request, reply) => {
     const result = await pool.query(`
       SELECT id, username, full_name, role, roles, permissions, is_active, seller_lookup_id, display_order, created_at, updated_at
       FROM app_users
-      ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'technician' THEN 2 WHEN 'sales' THEN 3 ELSE 9 END, display_order ASC, full_name ASC, id ASC
+      ORDER BY CASE role WHEN 'admin' THEN 1 WHEN 'technician' THEN 2 WHEN 'sales' THEN 3 WHEN 'warehouse' THEN 4 ELSE 9 END, display_order ASC, full_name ASC, id ASC
     `);
     return result.rows.map(sanitizeUser);
   } catch (err) {
