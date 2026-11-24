@@ -3902,10 +3902,10 @@
 #reset_password_new,
 #reset_password_confirm {
     direction: ltr;
-    text-align: left;
+    text-align: center;
 }
 #user_password::placeholder,
 #reset_password_new::placeholder {
     direction: rtl;
-    text-align: right;
+    text-align: center;
 }
