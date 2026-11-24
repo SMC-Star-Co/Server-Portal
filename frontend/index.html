@@ -367,6 +367,7 @@
 
             <div class="portal-modal-footer">
                 <button id="serialSaveBtn" class="flex-1 primary-submit" onclick="submitSerialsUpdate()">ذخیره سریال‌ها</button>
+                <button type="button" id="serialPdfExportBtn" class="secondary-btn" onclick="downloadSerialsPdf()" disabled>دانلود PDF بارکدها</button>
                 <button class="secondary-btn" onclick="closeSerialModal()">بستن</button>
             </div>
         </div>
@@ -947,6 +948,7 @@
         <div id="invoiceMediaPreviewBody" class="invoice-media-preview-body"></div>
     </dialog>
 
+    <script src="./assets/js/serial-barcode-pdf.js"></script>
     <script src="./assets/js/app.js"></script>
     <script src="./assets/js/invoice-media.js"></script>
     <script src="./assets/icons/lucide-icons.js"></script>

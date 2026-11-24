@@ -1335,6 +1335,8 @@ const API_URL = '/api';
         function renderSerials() {
             const list = document.getElementById('serials_list');
             list.innerHTML = '';
+            const exportBtn = document.getElementById('serialPdfExportBtn');
+            if (exportBtn) exportBtn.disabled = !currentSerials.length || !hasPermission('orders.view');
 
             if (currentSerials.length === 0) {
                 list.innerHTML = `<div class="mini-empty-state" style="direction: rtl;">هنوز سریالی ثبت نشده است.</div>`;
@@ -1363,6 +1365,21 @@ const API_URL = '/api';
             });
         }
 
+
+        function downloadSerialsPdf() {
+            if (!requireClientPermission('orders.view', 'شما دسترسی مشاهده فاکتورها را ندارید.')) return;
+            const id = document.getElementById('serial_order_id')?.value;
+            const order = allOrdersData.find(o => String(o.id) === String(id));
+            if (!order) return showAppToast('فاکتور یافت نشد.');
+            if (serialEditingIndex >= 0) saveInlineEdit(serialEditingIndex);
+            if (!currentSerials.length) return showAppToast('هنوز سریالی ثبت نشده است.');
+            try {
+                // Export exactly the currently displayed list, in its existing order.
+                SerialBarcodePdf.download([...currentSerials], order.invoice_number || order.id);
+            } catch (error) {
+                showAppToast(error.message || 'ساخت فایل PDF ناموفق بود.');
+            }
+        }
 
         async function copySerialAndLog(serial) {
             copyToClipboard(serial, 'سریال در حافظه کپی شد');
