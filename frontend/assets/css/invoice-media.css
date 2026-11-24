@@ -371,3 +371,28 @@ dialog.invoice-media-preview{width:min(1720px,96vw);max-width:96vw;max-height:96
 .invoice-media-video-clock{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:#64748b;}
 .invoice-media-video-volume{width:85px;accent-color:var(--primary,#2563eb);cursor:pointer;}
 @media(max-width:500px){.invoice-media-video-controls{padding:7px 9px;gap:5px;}.invoice-media-video-buttons{gap:5px;}.invoice-media-video-button{font-size:10px;}.invoice-media-video-volume{width:50px;}}
+
+/* Shared readable metadata; fullscreen video; document viewing. */
+.invoice-media-modal-card .invoice-media-file-size,.invoice-media-modal-card .invoice-media-file-detail,.invoice-media-modal-card .invoice-media-file-date,.invoice-media-modal-card .invoice-media-uploaded-by{color:#1c3558;font-weight:650;}
+.invoice-media-preview-name-wrap span{color:#182b49;font-weight:650;}
+.invoice-media-modal-card .invoice-media-panel-heading{align-items:center;}
+.invoice-media-video-icon{width:34px;height:32px;padding:0;flex:none;}
+.invoice-media-video-player:fullscreen,.invoice-media-simulated-fullscreen .invoice-media-video-player{position:relative;width:100%;height:100%;background:#000;}
+.invoice-media-video-player:fullscreen .invoice-media-video-stage,.invoice-media-simulated-fullscreen .invoice-media-video-stage{background:#000;position:absolute;inset:0;}
+.invoice-media-video-player:fullscreen .invoice-media-video-controls,.invoice-media-simulated-fullscreen .invoice-media-video-controls{position:absolute;bottom:0;left:0;right:0;z-index:3;background:linear-gradient(transparent,#000d);border:0;color:white;padding:28px 24px 14px;transition:opacity .22s ease;}
+.invoice-media-video-player:fullscreen .invoice-media-video-button,.invoice-media-simulated-fullscreen .invoice-media-video-button{background:#1119;border-color:#ffffff35;color:white;}
+.invoice-media-video-player:fullscreen .invoice-media-video-clock,.invoice-media-simulated-fullscreen .invoice-media-video-clock{color:white;}
+.invoice-media-video-player:fullscreen.controls-hidden .invoice-media-video-controls,.invoice-media-simulated-fullscreen .controls-hidden .invoice-media-video-controls{opacity:0;pointer-events:none;}
+.invoice-media-video-player.controls-hidden .invoice-media-video-stage video{cursor:none;}
+dialog.invoice-media-preview.invoice-media-simulated-fullscreen{position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border:0;border-radius:0;}
+.invoice-media-simulated-fullscreen .invoice-media-preview-header{display:none;}
+.invoice-media-simulated-fullscreen .invoice-media-preview-body{width:100%;height:100%;max-height:none;}
+.invoice-media-document-stage{flex:1;min-height:0;overflow:auto;background:#eef2f8;padding:16px;direction:ltr;}
+.invoice-media-document-page{position:relative;margin:0 auto;background:white;box-shadow:0 3px 16px #18345a22;isolation:isolate;}
+.invoice-media-document-page canvas{display:block;}
+.invoice-media-document-page .textLayer{position:absolute;inset:0;overflow:hidden;line-height:1;user-select:text;}
+.invoice-media-document-status{padding:30px;text-align:center;color:#36516f;direction:rtl;}
+.invoice-media-document-text{max-width:100%;min-height:100%;white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;padding:20px;color:#182b49;line-height:1.8;margin:0;}
+.invoice-media-document-zoom{direction:ltr;min-width:55px;text-align:center;color:#1c3558;font-size:12px;}
+.invoice-media-pdf-toolbar{flex-wrap:wrap;gap:7px;}
+.invoice-media-pdf-toolbar [hidden]{display:none!important;}

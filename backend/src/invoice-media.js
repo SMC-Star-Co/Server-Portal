@@ -9,6 +9,7 @@ const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { toJalaliDateTime } = require('./utils/jalali-date');
 const { sendVideoRange, createVideoPreviewCache } = require('./video-preview');
+const { registerDocumentPreview }=require('./document-preview');
 
 const MEDIA_ROOT = process.env.PORTAL_MEDIA_DIR || '/app/media';
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -229,6 +230,7 @@ async function withPdfPreview(work){
   try{return await work();}finally{pdfPreviewJobs--;}
 }
 function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent,pdfCommand=runPdfCommand}) {
+  registerDocumentPreview(fastify,{pool,storedPath,validId,fail});
   // Keep the request as a stream: a 500-MB upload must not be buffered in Node memory.
   fastify.addContentTypeParser('application/octet-stream', (request, payload, done) => done(null,payload));
   fastify.get('/api/orders/:id/media', async(request,reply) => {

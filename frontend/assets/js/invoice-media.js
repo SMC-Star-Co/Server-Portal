@@ -278,9 +278,15 @@ function fileType(file) {
   if (mime.startsWith('image/')) return {kind:'image',ext};
   return {kind:'document',ext};
 }
+const MEDIA_DOCUMENT_EXTENSIONS=new Set('pdf doc docx xls xlsx ppt pptx txt csv log rtf odt ods'.split(' '));
+function mediaDocumentExtension(file){
+  if(file.mime_type==='application/pdf')return 'pdf';
+  const ext=mediaExt(file.download_name||file.original_name);
+  return MEDIA_DOCUMENT_EXTENSIONS.has(ext)?ext:'';
+}
 function mediaPreviewable(file) {
-  return ['image/jpeg','image/png','image/webp','image/gif','image/bmp',
-    'video/mp4','video/webm','video/quicktime','application/pdf'].includes(file.mime_type);
+  return Boolean(mediaDocumentExtension(file))||['image/jpeg','image/png','image/webp','image/gif','image/bmp',
+    'video/mp4','video/webm','video/quicktime'].includes(file.mime_type);
 }
 function drawMediaRows(container,files) {
   container.replaceChildren();
@@ -525,72 +531,82 @@ function bindMediaImageZoom(stage,img) {
   };
 }
 // Render each PDF page as an authenticated PNG from the server; no browser PDF plug-in required.
-async function openMediaPdfPreview(file,dialog,body,request) {
-  const orderId=invoiceMedia.orderId;
-  const endpoint=API_URL+'/orders/'+orderId+'/media/'+file.id+'/pdf-preview';
+// Browser-side PDF renderer; Office files are converted to temporary PDFs in a separate service.
+let mediaPdfLibrary=null;
+function loadMediaPdfLibrary(){
+  if(!mediaPdfLibrary){
+    const css=new Promise((resolve,reject)=>{
+      const old=document.getElementById('invoiceMediaPdfStyles');if(old){resolve();return;}
+      const link=document.createElement('link');link.id='invoiceMediaPdfStyles';link.rel='stylesheet';link.href='/pdfjs/web/pdf_viewer.css';
+      link.onload=resolve;link.onerror=()=>{link.remove();reject(Error('بارگذاری نمایشگر سند ناموفق بود.'));};document.head.append(link);
+    });
+    mediaPdfLibrary=Promise.all([import('/pdfjs/legacy/build/pdf.mjs'),css]).then(([lib])=>{
+      lib.GlobalWorkerOptions.workerSrc='/pdfjs/legacy/build/pdf.worker.mjs';return lib;
+    }).catch(error=>{mediaPdfLibrary=null;throw error;});
+  }
+  return mediaPdfLibrary;
+}
+async function openMediaDocumentPreview(file,dialog,body,request){
+  const ext=mediaDocumentExtension(file),plain=['txt','log','csv'].includes(ext);
+  const endpoint=API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id+'/document-preview';
   const controller=new AbortController();
-  let pageController=null,pageUrl=null,zoomCleanup=null,closed=false,loadId=0,current=1,total=0;
+  let closed=false,task=null,pdf=null,renderTask=null,textLayer=null,revision=0,current=1,total=0,zoom=1,fit=!plain,lib=null,text=null,lastScale=1;
   const active=()=>!closed&&request===mediaPreviewRequest;
   const shell=document.createElement('div');shell.className='invoice-media-pdf-view';
   const toolbar=document.createElement('div');toolbar.className='invoice-media-pdf-toolbar';toolbar.dir='rtl';
-  const previous=mediaButton('صفحه قبل','secondary-btn',()=>loadPage(current-1));
-  const next=mediaButton('صفحه بعد','secondary-btn',()=>loadPage(current+1));
+  const stage=document.createElement('div');stage.className='invoice-media-document-stage';
+  const status=document.createElement('div');status.className='invoice-media-document-status';status.setAttribute('role','status');
+  const previous=mediaButton('صفحه قبل','secondary-btn',()=>{if(current>1){current--;stage.scrollTop=0;render();}});
+  const next=mediaButton('صفحه بعد','secondary-btn',()=>{if(current<total){current++;stage.scrollTop=0;render();}});
   const number=document.createElement('span');number.className='invoice-media-pdf-page-number';number.setAttribute('aria-live','polite');
-  const stage=document.createElement('div');stage.className='invoice-media-image-stage invoice-media-pdf-stage';
-  const status=document.createElement('div');status.className='invoice-media-pdf-status';status.setAttribute('role','status');
-  toolbar.append(previous,number,next);shell.append(toolbar,stage);body.append(shell);body.classList.add('is-pdf-preview');
-  previous.disabled=true;next.disabled=true;number.textContent='در حال بررسی PDF…';
-  stage.append(status);status.textContent='در حال آماده‌سازی پیش‌نمایش…';
-  mediaPreviewCleanup=()=>{
-    closed=true;controller.abort();pageController?.abort();zoomCleanup?.();
-    if(pageUrl)URL.revokeObjectURL(pageUrl);
-  };
-  if(!dialog.open)dialog.showModal();
-  function showError(message){
+  const minus=mediaButton('−','secondary-btn',()=>setZoom(-.25));minus.setAttribute('aria-label','کوچک‌نمایی');
+  const plus=mediaButton('+','secondary-btn',()=>setZoom(.25));plus.setAttribute('aria-label','بزرگ‌نمایی');
+  const zoomLabel=document.createElement('span');zoomLabel.className='invoice-media-document-zoom';
+  const fitButton=mediaButton('تناسب با عرض','secondary-btn',()=>{fit=!plain;zoom=1;render();});
+  toolbar.append(previous,number,next,minus,zoomLabel,plus,fitButton);shell.append(toolbar,stage);body.append(shell);body.classList.add('is-pdf-preview');
+  function message(value){stage.replaceChildren(status);status.textContent=value;}
+  function sync(){
+    previous.hidden=next.hidden=number.hidden=plain;
+    previous.disabled=!pdf||current<=1;next.disabled=!pdf||current>=total;
+    minus.disabled=plus.disabled=fitButton.disabled=!pdf&&text===null;
+    number.textContent=total?'صفحه '+current+' از '+total:'سند';
+    zoomLabel.textContent=fit?'خودکار':Math.round(zoom*100)+'%';
+  }
+  function setZoom(delta){if(!pdf&&text===null)return;if(fit){fit=false;zoom=lastScale;}zoom=Math.max(.25,Math.min(3,zoom+delta));render();}
+  async function render(){
     if(!active())return;
-    zoomCleanup?.();zoomCleanup=null;
-    stage.classList.remove('is-zoomed','is-panning');stage.replaceChildren(status);status.textContent=message;
-    if(pageUrl){URL.revokeObjectURL(pageUrl);pageUrl=null;}
-  }
-  function buttons(busy=false){
-    previous.disabled=busy||current<=1;next.disabled=busy||current>=total;
-    number.textContent=total?'صفحه '+current+' از '+total:'PDF';
-  }
-  async function loadPage(page){
-    if(!active()||page<1||page>total)return;
-    const localId=++loadId;
-    pageController?.abort();pageController=new AbortController();
-    buttons(true);number.textContent='در حال نمایش صفحه '+page+' از '+total;
+    const id=++revision;renderTask?.cancel();textLayer?.cancel();renderTask=null;textLayer=null;sync();
+    if(plain&&text!==null){const pre=document.createElement('pre');pre.className='invoice-media-document-text';pre.dir='auto';pre.style.fontSize=(14*zoom)+'px';pre.textContent=text;stage.replaceChildren(pre);return;}
+    if(!pdf)return;
     try{
-      const response=await apiFetch(endpoint+'/'+page,{cache:'no-store',signal:pageController.signal});
-      if(!response.ok){
-        const info=await response.json().catch(()=>({}));
-        throw new Error(info.error||'نمایش این صفحه امکان‌پذیر نیست.');
-      }
-      const blob=await response.blob();
-      if(!active()||localId!==loadId)return;
-      zoomCleanup?.();zoomCleanup=null;
-      if(pageUrl)URL.revokeObjectURL(pageUrl);
-      pageUrl=URL.createObjectURL(blob);
-      const img=document.createElement('img');img.alt='صفحه '+page+' از PDF';
-      stage.classList.remove('is-zoomed','is-panning');stage.replaceChildren(img);
-      zoomCleanup=bindMediaImageZoom(stage,img);img.src=pageUrl;
-      current=page;
-    }catch(error){
-      if(active()&&localId===loadId&&error.name!=='AbortError')showError(error.message||'خطا در نمایش PDF');
-    }finally{if(active()&&localId===loadId)buttons();}
+      const page=await pdf.getPage(current);if(!active()||id!==revision)return;
+      const unit=page.getViewport({scale:1});
+      const scale=fit?Math.max(.25,Math.min(2,(stage.clientWidth-32)/unit.width)):zoom;lastScale=scale;
+      const viewport=page.getViewport({scale});
+      const ratio=Math.min(window.devicePixelRatio||1,2,Math.sqrt(12000000/(viewport.width*viewport.height)));
+      const sheet=document.createElement('div');sheet.className='invoice-media-document-page';
+      sheet.style.width=viewport.width+'px';sheet.style.height=viewport.height+'px';
+      sheet.style.setProperty('--total-scale-factor',String(scale*(page.userUnit||1)));sheet.style.setProperty('--scale-round-x','1px');sheet.style.setProperty('--scale-round-y','1px');
+      const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.floor(viewport.width*ratio));canvas.height=Math.max(1,Math.floor(viewport.height*ratio));canvas.style.width=viewport.width+'px';canvas.style.height=viewport.height+'px';
+      const layer=document.createElement('div');layer.className='textLayer';sheet.append(canvas,layer);stage.replaceChildren(sheet);
+      renderTask=page.render({canvas,viewport,transform:[ratio,0,0,ratio,0,0]});await renderTask.promise;
+      if(!active()||id!==revision)return;
+      textLayer=new lib.TextLayer({textContentSource:page.streamTextContent(),container:layer,viewport});await textLayer.render();
+    }catch(error){if(active()&&id===revision&&error.name!=='RenderingCancelledException'&&error.name!=='AbortException')message('نمایش این صفحه ممکن نیست.');}
   }
+  let resizeTimer=null;
+  const observer=typeof ResizeObserver==='function'?new ResizeObserver(()=>{if(fit&&pdf){clearTimeout(resizeTimer);resizeTimer=setTimeout(render,100);}}):null;
+  observer?.observe(stage);
+  mediaPreviewCleanup=()=>{closed=true;++revision;controller.abort();clearTimeout(resizeTimer);observer?.disconnect();renderTask?.cancel();textLayer?.cancel();if(task)Promise.resolve(task.destroy()).catch(()=>{});};
+  if(!dialog.open)dialog.showModal();sync();message('در حال آماده‌سازی سند…');
   try{
-    const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});
-    const info=await response.json().catch(()=>({}));
-    if(!active())return;
-    if(!response.ok)throw new Error(info.error||'این PDF قابل نمایش نیست.');
-    total=Number(info.pages);
-    if(!Number.isSafeInteger(total)||total<1)throw new Error('تعداد صفحات PDF معتبر نیست.');
-    await loadPage(1);
-  }catch(error){
-    if(active()&&error.name!=='AbortError'){showError(error.message||'خطا در آماده‌سازی PDF');buttons();}
-  }
+    if(plain){const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||'نمایش سند ممکن نیست.');text=await response.text();if(active())render();return;}
+    lib=await loadMediaPdfLibrary();if(!active())return;
+    const options={cMapUrl:'/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/pdfjs/standard_fonts/',wasmUrl:'/pdfjs/wasm/',iccUrl:'/pdfjs/iccs/',isEvalSupported:false,enableXfa:false};
+    if(ext==='pdf'){task=lib.getDocument({...options,url:endpoint,httpHeaders:{Authorization:'Bearer '+authToken},disableAutoFetch:true,disableStream:true,rangeChunkSize:262144});}
+    else{const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||'تبدیل پیش‌نمایش سند ممکن نیست.');const data=new Uint8Array(await response.arrayBuffer());if(!active())return;task=lib.getDocument({...options,data});}
+    pdf=await task.promise;if(!active())return;total=pdf.numPages;await render();
+  }catch(error){if(active()&&error.name!=='AbortError'){message('نمایش سند ممکن نیست. '+(error.message||'فایل اصلی قابل دانلود است.'));sync();}}
 }
 // Local player UI. Native browser decoding keeps server CPU/RAM use minimal.
 function mediaVideoClock(seconds){
@@ -617,9 +633,36 @@ async function openMediaVideoPreview(file,dialog,body,request){
   const playIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>';
   const pauseIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
   const clock=document.createElement('span');clock.className='invoice-media-video-clock';clock.textContent='00:00 / 00:00';
-  const mute=button('صدا',()=>{video.muted=!video.muted;});
+  const svg=path=>'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
+  const soundIcon=svg('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/>');
+  const mutedIcon=svg('<path d="M11 5 6 9H3v6h3l5 4zM16 9l5 6m0-6-5 6"/>');
+  const enterIcon=svg('<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>');
+  const exitIcon=svg('<path d="M3 8h5V3m13 5h-5V3M8 21v-5H3m13 5v-5h5"/>');
+  const mute=button('قطع صدا',()=>{if(video.volume===0){video.volume=1;video.muted=false;}else video.muted=!video.muted;});
+  mute.classList.add('invoice-media-video-icon');
+  const full=button('تمام صفحه',toggleFullscreen);full.classList.add('invoice-media-video-icon');
+  let fadeTimer=null,simulatedFullscreen=false,keyboardMode=false;
+  const inFullscreen=()=>document.fullscreenElement===shell||simulatedFullscreen;
+  function showControls(){
+    clearTimeout(fadeTimer);shell.classList.remove('controls-hidden');
+    if(inFullscreen()&&!video.paused&&!video.ended)
+      fadeTimer=setTimeout(()=>{if(inFullscreen()&&!video.paused&&!video.ended&&!bar.matches(':hover')&&!(keyboardMode&&bar.matches(':focus-within')))shell.classList.add('controls-hidden');},2200);
+  }
+  function fullscreenChanged(){
+    const enabled=inFullscreen();full.innerHTML=enabled?exitIcon:enterIcon;
+    full.title=enabled?'خروج از تمام صفحه':'تمام صفحه';full.setAttribute('aria-label',full.title);
+    full.setAttribute('aria-pressed',String(enabled));showControls();
+  }
+  async function toggleFullscreen(){
+    try{
+      if(document.fullscreenElement===shell){await document.exitFullscreen();return;}
+      if(simulatedFullscreen){simulatedFullscreen=false;dialog.classList.remove('invoice-media-simulated-fullscreen');fullscreenChanged();return;}
+      if(shell.requestFullscreen){try{await shell.requestFullscreen();return;}catch{}}
+      simulatedFullscreen=true;dialog.classList.add('invoice-media-simulated-fullscreen');fullscreenChanged();
+    }catch{showAppToast('نمایش تمام صفحه ممکن نیست.');}
+  }
   const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='0.05';volume.value='1';volume.className='invoice-media-video-volume';volume.setAttribute('aria-label','حجم صدا');
-  stage.append(video,status);controls.append(play,clock,mute,volume);bar.append(seek,controls);shell.append(stage,bar);body.append(shell);body.classList.add('is-video-preview');
+  stage.append(video,status);controls.append(play,clock,mute,volume,full);bar.append(seek,controls);shell.append(stage,bar);body.append(shell);body.classList.add('is-video-preview');
   function setStatus(text){status.textContent=text||'';status.hidden=!text;}
   function clearPoll(){if(pollTimer!==null){clearTimeout(pollTimer);pollTimer=null;}if(resolvePoll){const done=resolvePoll;resolvePoll=null;done();}}
   function wait(){return new Promise(resolve=>{resolvePoll=resolve;pollTimer=setTimeout(()=>{pollTimer=null;resolvePoll=null;resolve();},3000);});}
@@ -634,7 +677,9 @@ async function openMediaVideoPreview(file,dialog,body,request){
       play.innerHTML=paused?playIcon:pauseIcon;play.dataset.paused=String(paused);
     }
     play.setAttribute('aria-label',paused?'پخش':'توقف');play.title=paused?'پخش':'توقف';
-    mute.textContent=video.muted||video.volume===0?'بی‌صدا':'صدا';mute.setAttribute('aria-pressed',String(video.muted||video.volume===0));
+    const silent=video.muted||video.volume===0;
+    if(mute.dataset.silent!==String(silent)){mute.innerHTML=silent?mutedIcon:soundIcon;mute.dataset.silent=String(silent);}
+    mute.title=silent?'وصل صدا':'قطع صدا';mute.setAttribute('aria-label',mute.title);mute.setAttribute('aria-pressed',String(silent));
     volume.value=String(video.muted?0:video.volume);
     clock.textContent=mediaVideoClock(time)+' / '+mediaVideoClock(duration);
   }
@@ -699,6 +744,12 @@ async function openMediaVideoPreview(file,dialog,body,request){
     if(!compatible&&!autoAttempted&&(code===3||code===4)){autoAttempted=true;start(true);return;}
     sourceReady=false;setStatus('پخش این ویدیو امکان‌پذیر نیست. پیش‌نمایش را دوباره باز کنید یا فایل را از مدیریت فایل‌ها دانلود کنید.');sync();
   });
+  on(document,'fullscreenchange',fullscreenChanged);
+  on(shell,'pointermove',showControls);on(shell,'pointerdown',()=>{keyboardMode=false;showControls();});
+  on(shell,'keydown',()=>{keyboardMode=true;showControls();});
+  on(bar,'pointerleave',showControls);on(bar,'focusin',showControls);
+  on(video,'play',showControls);on(video,'pause',showControls);on(video,'ended',showControls);
+  on(dialog,'cancel',event=>{if(simulatedFullscreen){event.preventDefault();toggleFullscreen();}});
   on(video,'click',togglePlay);
   on(video,'keydown',e=>{
     if(e.key===' '||e.key==='Enter'){e.preventDefault();togglePlay();}
@@ -708,11 +759,13 @@ async function openMediaVideoPreview(file,dialog,body,request){
   on(seek,'change',()=>{if(Number.isFinite(video.duration))video.currentTime=Number(seek.value);seeking=false;sync();});
   on(volume,'input',()=>{video.muted=false;video.volume=Number(volume.value);});
   mediaPreviewCleanup=()=>{
-    closed=true;++run;controller?.abort();clearPoll();
+    closed=true;++run;controller?.abort();clearPoll();clearTimeout(fadeTimer);
+    simulatedFullscreen=false;dialog.classList.remove('invoice-media-simulated-fullscreen');
+    if(document.fullscreenElement===shell)document.exitFullscreen().catch(()=>{});
     for(const [target,event,handler] of events)target.removeEventListener(event,handler);
     video.pause();video.removeAttribute('src');video.load();
   };
-  sync();
+  sync();fullscreenChanged();
   if(!dialog.open)dialog.showModal();
   await start(false);
 }
@@ -730,8 +783,8 @@ async function previewInvoiceMedia(file) {
   const uploader=mediaElement('invoiceMediaPreviewUploader');
   uploader.textContent='ثبت : '+(file.uploader_name||'نامشخص');uploader.title=uploader.textContent;
   try{
-    if(file.mime_type==='application/pdf'){
-      await openMediaPdfPreview(file,dialog,body,request);
+    if(mediaDocumentExtension(file)){
+      await openMediaDocumentPreview(file,dialog,body,request);
       return;
     }
     if(String(file.mime_type||'').startsWith('video/')){
