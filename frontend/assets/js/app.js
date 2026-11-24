@@ -3729,7 +3729,7 @@ const API_URL = '/api';
                             <div class="date-title">
                                 <span>${isToday ? '<span class="inline-flex items-center gap-1"><span data-portal-icon="pin"></span><span>امروز</span></span>' : '<span data-portal-icon="calendar"></span>'}</span>
                                 <span>${escapeHtml(date)}</span>
-                                <span class="date-count">${grouped[date].length} مورد</span>
+                                <span class="date-count">${grouped[date].length} فاکتور</span>
                             </div>
                             <span id="arrow-${safeDateId}" class="group-arrow ${isOpen ? 'is-open' : 'is-closed'}" aria-hidden="true">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
