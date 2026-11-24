@@ -219,17 +219,38 @@ function renderPendingMediaFiles() {
   }
 }
 
-async function refreshInvoiceMedia() {
+let mediaSyncRequest = 0;
+function canRefreshOpenMedia() {
+  return !invoiceMedia.uploading && !invoiceMedia.editSaving &&
+    !mediaElement('invoiceMediaPreview')?.open && !mediaElement('invoiceMediaEditModal')?.open &&
+    !invoiceMedia.pending.serial.length && !invoiceMedia.pending.invoice.length;
+}
+async function refreshOpenInvoiceMediaSilently() {
+  if (!invoiceMedia.orderId || !mediaElement('invoiceMediaModal')?.getClientRects().length) return true;
+  if (!canRefreshOpenMedia()) return false;
+  return refreshInvoiceMedia(true);
+}
+async function refreshInvoiceMedia(silent = false) {
   const id = invoiceMedia.orderId;
   if (!id) return;
-  const generation = ++invoiceMedia.generation;
+  const requestId = ++mediaSyncRequest;
+  const generation = silent ? invoiceMedia.generation : ++invoiceMedia.generation;
   const root = mediaElement('invoiceMediaSerialGroups');
-  if (root) root.textContent = 'در حال بارگذاری فهرست فایل‌ها...';
+  if (root && !silent) root.textContent = 'در حال بارگذاری فهرست فایل‌ها...';
   try {
     const response = await apiFetch(API_URL + '/orders/' + id + '/media',{cache:'no-store'});
     if (!response.ok) throw new Error('بارگذاری فهرست فایل‌های فاکتور ناموفق بود.');
     const data = await response.json();
-    if (invoiceMedia.generation !== generation || invoiceMedia.orderId !== id) return;
+    if (invoiceMedia.generation !== generation || invoiceMedia.orderId !== id || requestId !== mediaSyncRequest) return true;
+    if (silent && !canRefreshOpenMedia()) return false;
+    const nextSerials = Array.isArray(data.serials) ? data.serials : [];
+    const nextFiles = Array.isArray(data.files) ? data.files : [];
+    if (silent && PortalLiveRefresh.sameData(invoiceMedia.serials,nextSerials) && PortalLiveRefresh.sameData(invoiceMedia.files,nextFiles) &&
+        invoiceMedia.invoice === String(data.invoice_number || '') && invoiceMedia.canUpload === Boolean(data.can_upload) &&
+        invoiceMedia.canEdit === Boolean(data.can_edit) && invoiceMedia.canDelete === Boolean(data.can_delete)) return true;
+    if (silent) invoiceMedia.generation++;
+    const scrollRoot = mediaElement('invoiceMediaModal')?.querySelector('.invoice-media-browser');
+    const scrollTop = scrollRoot?.scrollTop || 0;
     invoiceMedia.invoice = String(data.invoice_number || '');
     invoiceMedia.serials = Array.isArray(data.serials) ? data.serials : [];
     invoiceMedia.files = Array.isArray(data.files) ? data.files : [];
@@ -257,12 +278,14 @@ async function refreshInvoiceMedia() {
     mediaElement('invoiceMediaSerialCount').textContent = count;
     updateInvoiceMediaTarget();
     drawInvoiceMedia();
+    if (silent && scrollRoot) scrollRoot.scrollTop = scrollTop;
+    return true;
   } catch(error) {
-    if (generation === invoiceMedia.generation) {
+    if (!silent && requestId === mediaSyncRequest && generation === invoiceMedia.generation) {
       if(root) root.textContent='بارگذاری فایل‌ها ناموفق بود؛ دوباره تلاش کنید.';
       if(root) root.textContent = error.message || 'خطا در بارگذاری اطلاعات';
-
     }
+    return true; // Retry on the next event or periodic sync, not in a tight loop.
   }
 }
 function mediaButton(label,css,handler) {

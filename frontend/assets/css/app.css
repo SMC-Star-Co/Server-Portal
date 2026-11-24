@@ -3909,3 +3909,11 @@
     direction: rtl;
     text-align: center;
 }
+
+/* Silent live sync: a small status indicator, no automatic loading overlay. */
+.live-connection-status {
+    display: inline-block; flex: 0 0 8px; width: 8px; height: 8px;
+    border-radius: 50%; background: #d97706;
+}
+.live-connection-status[data-state="connected"] { background: #16a34a; }
+.live-connection-status[data-state="offline"] { background: #dc2626; }

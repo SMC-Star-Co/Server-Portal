@@ -1,17 +1,19 @@
 const realtimeClients = new Set();
 
-function broadcastRealtimeEvent(type, payload = {}) {
-  const data = JSON.stringify({ type, payload, at: new Date().toISOString() });
+// Events are invalidations, never invoice/user IDs or business data.
+// All actual data is fetched through permission-checked API routes.
+function broadcastRealtimeEvent(type) {
+  const data = JSON.stringify({ type });
   for (const client of realtimeClients) {
     try {
-      client.write(`event: portal-update
-data: ${data}
-
-`);
-    } catch (err) {
+      if (client.destroyed || !client.write('event: portal-update\ndata: ' + data + '\n\n')) {
+        realtimeClients.delete(client);
+        client.destroy();
+      }
+    } catch {
       realtimeClients.delete(client);
+      client.destroy();
     }
   }
 }
-
 module.exports = { realtimeClients, broadcastRealtimeEvent };

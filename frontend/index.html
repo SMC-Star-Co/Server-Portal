@@ -424,6 +424,7 @@
                             <button id="manualRefreshBtn" type="button" class="header-refresh-btn" onclick="handleManualRefresh()" aria-label="بروزرسانی">
                                 <span data-portal-icon="refresh-cw"></span>
                             </button>
+                            <span id="liveConnectionStatus" class="live-connection-status" data-state="connecting" role="status" aria-label="در حال اتصال" title="در حال اتصال"></span>
                             <span class="last-refresh-label">آخرین بروزرسانی</span>
                             <b id="lastRefreshTime" class="last-refresh-time">--:--:--</b>
                         </div>
@@ -953,6 +954,7 @@
     </dialog>
 
     <script src="./assets/js/serial-barcode-pdf.js"></script>
+    <script src="./assets/js/live-refresh.js"></script>
     <script src="./assets/js/app.js"></script>
     <script src="./assets/js/invoice-media.js"></script>
     <script src="./assets/icons/lucide-icons.js"></script>

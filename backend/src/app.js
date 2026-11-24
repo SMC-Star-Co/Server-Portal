@@ -802,7 +802,6 @@ fastify.addHook('preHandler', async (request, reply) => {
   if (request.method === 'OPTIONS') return;
   if (!request.url.startsWith('/api/')) return;
   if (request.url.startsWith('/api/auth/login')) return;
-  if (request.url.startsWith('/api/events')) return;
   // Short-lived random media tickets are issued only after authenticated access; video leases renew on range requests.
   if (request.url.startsWith('/api/media-transfer/')) return;
   await authenticateRequest(request, reply);
@@ -816,22 +815,30 @@ fastify.get('/api/auth/me', async (request) => {
 
 
 fastify.get('/api/events', async (request, reply) => {
-  const token = String((request.query || {}).token || '');
-  const payload = verifyToken(token);
-  if (!payload || !payload.sub) {
-    return reply.status(401).send({ error: 'نشست شما نامعتبر یا منقضی شده است.' });
-  }
-
-  reply.raw.writeHead(200, {
+  // The normal API authentication hook validates the bearer token and active user.
+  if (!request.user) return reply.code(401).send({ error: 'نشست نامعتبر است.' });
+  const token = String(request.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  reply.hijack();
+  const stream = reply.raw;
+  stream.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no'
   });
-  reply.raw.write(`event: portal-update\ndata: ${JSON.stringify({ type: 'connected', at: new Date().toISOString() })}\n\n`);
-  realtimeClients.add(reply.raw);
-  request.raw.on('close', () => realtimeClients.delete(reply.raw));
-  return reply;
+  const send = type => stream.write('event: portal-update\ndata: ' + JSON.stringify({type}) + '\n\n');
+  realtimeClients.add(stream);
+  const heartbeat = setInterval(() => {
+    try {
+      if (stream.destroyed || !verifyToken(token)) { stream.end(); return; }
+      if (!send('heartbeat')) stream.destroy();
+    } catch { stream.destroy(); }
+  }, 25000);
+  heartbeat.unref?.();
+  const cleanup = () => { clearInterval(heartbeat); realtimeClients.delete(stream); };
+  stream.once('close', cleanup);
+  stream.once('error', cleanup);
+  try { send('connected'); } catch { stream.destroy(); }
 });
 
 

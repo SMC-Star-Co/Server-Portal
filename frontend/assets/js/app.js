@@ -97,6 +97,10 @@ const API_URL = '/api';
         let ordersAutoRefreshTimer = null;
         let refreshInProgress = false;
         let lastRefreshAt = null;
+        let liveOrdersRequest = 0, liveLogsRequest = 0, liveLookupRequest = 0;
+        let liveRefreshQueued = false, liveRefreshTimer = null, liveConnection = null, liveFlushing = false;
+        let liveRetryTimer = null, liveRetryDelay = 1000, liveMetadataPending = false, liveMediaPending = false;
+        const livePending = new Set();
         const homeGroupState = {};
         const archiveGroupState = {};
         const activityGroupState = {};
@@ -116,9 +120,11 @@ const API_URL = '/api';
         }
 
         async function apiFetch(url, options = {}) {
+            const requestToken = authToken;
             const headers = new Headers(options.headers || {});
-            if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+            if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`);
             const response = await fetch(url, { ...options, headers });
+            if (requestToken !== authToken) throw new Error('نشست تغییر کرده است.');
             if (response.status === 401) {
                 logout(false);
                 throw new Error('نشست شما منقضی شده است. دوباره وارد شوید.');
@@ -220,16 +226,22 @@ const API_URL = '/api';
             document.getElementById('loginPage').style.display = 'none';
             document.getElementById('appShell').style.display = 'block';
             applySecurityUI();
-            showPage('home');
+            showPage('home', false);
             await loadSecurityCatalog();
             await loadMetadata();
             await loadOrders();
-            updateLastRefreshTime();
             setupOrdersAutoRefresh();
+            startLiveConnection();
         }
 
         function logout(clearToken = true) {
             stopOrdersAutoRefresh();
+            stopLiveConnection();
+            activityLogUsersLoaded = false;
+            lastRefreshAt = null;
+            const refreshClock = document.getElementById('lastRefreshTime');
+            if (refreshClock) refreshClock.textContent = '--:--:--';
+            liveOrdersRequest++; liveLogsRequest++; liveLookupRequest++;
             clearLoginForm();
             clearFormFields(document.getElementById('appShell'));
             if (clearToken) clearAuthToken();
@@ -286,7 +298,7 @@ const API_URL = '/api';
         function updateLastRefreshTime(dateValue = new Date()) {
             lastRefreshAt = dateValue instanceof Date ? dateValue : new Date(dateValue);
             const el = document.getElementById('lastRefreshTime');
-            if (el) el.innerText = formatLastRefreshClock(lastRefreshAt);
+            if (el && el.textContent !== formatLastRefreshClock(lastRefreshAt)) el.textContent = formatLastRefreshClock(lastRefreshAt);
         }
 
         function setManualRefreshLoading(isLoading) {
@@ -297,13 +309,8 @@ const API_URL = '/api';
         }
 
         async function handleManualRefresh() {
-            if (!currentUser || !authToken || refreshInProgress) return;
-            setManualRefreshLoading(true);
-            try {
-                await refreshPageData(activePage || 'home');
-            } finally {
-                setManualRefreshLoading(false);
-            }
+            if (!currentUser || !authToken) return;
+            queueLiveRefresh('all');
         }
 
         function handleFloatingAction() {
@@ -339,7 +346,7 @@ const API_URL = '/api';
             }
         }
 
-        function showPage(page) {
+        function showPage(page, refresh = true) {
             const pagePermissions = {
                 users: 'users.view',
                 lookups: 'lookups.view',
@@ -378,36 +385,31 @@ const API_URL = '/api';
             if (searchWrap) searchWrap.style.display = page === 'home' ? '' : 'none';
             updateFloatingAction(page);
 
-            refreshPageData(page);
+            if (refresh) refreshPageData(page).catch(e => console.error(e));
         }
 
-        async function refreshPageData(page = activePage) {
-            if (!currentUser || !authToken) return;
-            if (refreshInProgress) return;
+        async function refreshPageData(page = activePage, silent = false) {
+            if (!currentUser || !authToken) return false;
+            if (refreshInProgress) { liveRefreshQueued = true; return false; }
             refreshInProgress = true;
             let refreshed = false;
             try {
-                if (page === 'home') { await loadOrders(); refreshed = true; }
-                if (page === 'users') { await loadUsers(); refreshed = true; }
-                if (page === 'lookups') { await loadLookups(lookupActiveType); refreshed = true; }
-                if (page === 'archive') {
-                    await loadOrders();
-                    renderArchive();
-                    refreshed = true;
-                }
-                if (page === 'reports') {
-                    await initializeReportsPage();
-                    refreshed = true;
-                }
+                if (page === 'home' || page === 'archive' || page === 'reports') refreshed = await loadOrders(silent);
+                if (page === 'users') refreshed = await loadUsers(silent);
+                if (page === 'lookups') refreshed = await loadLookups(lookupActiveType, silent);
                 if (page === 'logs') {
-                    await loadActivityLogUsers();
-                    await loadActivityLogs();
-                    refreshed = true;
+                    await loadActivityLogUsers(true);
+                    refreshed = await loadActivityLogs(silent);
                 }
-                if (page === 'account') { renderAccountSettings(); refreshed = true; }
+                if (page === 'account') { refreshed = await refreshLiveIdentity(); if (refreshed) renderAccountSettings(); }
                 if (refreshed) updateLastRefreshTime();
+                return refreshed;
             } finally {
                 refreshInProgress = false;
+                if (liveRefreshQueued && currentUser && authToken) {
+                    liveRefreshQueued = false;
+                    queueLiveRefresh('page');
+                }
             }
         }
 
@@ -647,20 +649,23 @@ const API_URL = '/api';
             openUserModal();
         }
 
-        async function loadUsers() {
+        async function loadUsers(silent = false) {
             if (!hasPermission('users.view')) return;
-            await loadSecurityCatalog();
+            if (!silent) await loadSecurityCatalog();
             try {
                 const res = await apiFetch(`${API_URL}/users`);
                 const data = await res.json();
                 if (!res.ok) {
-                    showAppToast(data.error || 'خطا در دریافت کاربران');
-                    return;
+                    if (!silent) showAppToast(data.error || 'خطا در دریافت کاربران');
+                    return false;
                 }
+                if (!Array.isArray(data)) return false;
                 allUsers = data;
                 renderUsersTable();
+                return true;
             } catch (e) {
                 console.error(e);
+                return false;
             }
         }
 
@@ -675,7 +680,7 @@ const API_URL = '/api';
             const container = document.getElementById('usersGroupsContainer');
             if (!container) return;
             if (!allUsers.length) {
-                container.innerHTML = '<div class="mini-empty-state">کاربری ثبت نشده است.</div>';
+                PortalLiveRefresh.patchHtml(container, '<div class="mini-empty-state">کاربری ثبت نشده است.</div>');
                 return;
             }
 
@@ -686,10 +691,10 @@ const API_URL = '/api';
                 { role: 'warehouse', title: 'انبارداران' }
             ];
 
-            container.innerHTML = groups.map(group => {
+            PortalLiveRefresh.patchHtml(container, groups.map(group => {
                 const users = allUsers.filter(user => getUserRoles(user).includes(group.role));
                 const rows = users.length ? users.map((user, index) => `
-                    <tr>
+                    <tr data-refresh-key="user-${escapeAttr(user.id)}">
                         <td>
                             <div class="user-order-cell">
                                 <span class="user-order-number">${index + 1}</span>
@@ -718,7 +723,7 @@ const API_URL = '/api';
                 `).join('') : `<tr><td colspan="6">در این دسته کاربری ثبت نشده است.</td></tr>`;
 
                 return `
-                    <div class="user-role-group-card">
+                    <div data-refresh-key="role-${escapeAttr(group.role)}" class="user-role-group-card">
                         <div class="user-role-group-header">
                             <div class="user-role-title">
                                 <span>${escapeHtml(group.title)}</span>
@@ -750,7 +755,7 @@ const API_URL = '/api';
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join(''));
         }
 
         async function handleUserFormSubmit(event) {
@@ -919,12 +924,12 @@ const API_URL = '/api';
         function renderLookupTabs() {
             const container = document.getElementById('lookupTabsContainer');
             if (!container) return;
-            container.innerHTML = LOOKUP_TYPES.map(item => `
+            PortalLiveRefresh.patchHtml(container, LOOKUP_TYPES.map(item => `
                 <button type="button" class="lookup-tab-btn ${lookupActiveType === item.type ? 'active-lookup-tab' : ''}" onclick="selectLookupType('${item.type}')">
                     <span>${escapeHtml(item.title)}</span>
                     <span class="filter-count">${escapeHtml(getLookupTabCount(item.type))}</span>
                 </button>
-            `).join('');
+            `).join(''));
         }
 
         async function loadLookupTabCounts() {
@@ -978,18 +983,18 @@ const API_URL = '/api';
             `;
         }
 
-        function renderLookups() {
+        function renderLookups(silent = false) {
             renderLookupTabs();
-            renderLookupEditor();
+            if (!silent || !document.getElementById('lookupForm')) renderLookupEditor();
             const container = document.getElementById('lookupsContainer');
             if (!container) return;
             const config = getLookupTypeConfig();
             if (!lookupRows.length) {
-                container.innerHTML = `<div class="mini-empty-state">برای ${escapeHtml(config.title)} موردی ثبت نشده است.</div>`;
+                PortalLiveRefresh.patchHtml(container, `<div class="mini-empty-state">برای ${escapeHtml(config.title)} موردی ثبت نشده است.</div>`);
                 return;
             }
 
-            container.innerHTML = `
+            PortalLiveRefresh.patchHtml(container, `
                 <div class="advanced-search-title">
                     <div>
                         <strong>لیست ${escapeHtml(config.title)}</strong>
@@ -1009,7 +1014,7 @@ const API_URL = '/api';
                         </thead>
                         <tbody>
                             ${lookupRows.map((row, index) => `
-                                <tr>
+                                <tr data-refresh-key="lookup-${escapeAttr(row.id)}">
                                     <td>
                                         <div class="user-order-cell">
                                             <span class="user-order-number">${index + 1}</span>
@@ -1040,32 +1045,32 @@ const API_URL = '/api';
                         </tbody>
                     </table>
                 </div>
-            `;
+            `);
         }
 
-        async function loadLookups(type = lookupActiveType) {
+        async function loadLookups(type = lookupActiveType, silent = false) {
             if (!hasPermission('lookups.view')) return false;
             lookupActiveType = type;
             renderLookupTabs();
             const container = document.getElementById('lookupsContainer');
-            if (container) container.innerHTML = '<div class="mini-empty-state">در حال دریافت اطلاعات پایه...</div>';
+            if (container && !silent && !container.hasChildNodes()) container.innerHTML = '<div class="mini-empty-state">در حال دریافت اطلاعات پایه...</div>';
+            const requestId = ++liveLookupRequest;
             try {
-                const res = await apiFetch(`${API_URL}/lookups/${lookupActiveType}?_=${Date.now()}`, { cache: 'no-store' });
+                const res = await apiFetch(`${API_URL}/lookups/${type}?_=${Date.now()}`, { cache: 'no-store' });
                 const data = await res.json();
+                if (requestId !== liveLookupRequest || type !== lookupActiveType) return false;
                 if (!res.ok) {
-                    showAppToast(data.error || 'خطا در دریافت اطلاعات پایه');
-                    renderLookups();
+                    if (!silent) { showAppToast(data.error || 'خطا در دریافت اطلاعات پایه'); renderLookups(false); }
                     return false;
                 }
                 lookupRows = Array.isArray(data.rows) ? data.rows : [];
                 lookupCounts[lookupActiveType] = lookupRows.length;
-                renderLookups();
+                renderLookups(silent);
                 loadLookupTabCounts();
                 return true;
             } catch (e) {
                 console.error(e);
-                renderLookups();
-                showAppToast('خطا در ارتباط با سرور');
+                if (!silent) { renderLookups(false); showAppToast('خطا در ارتباط با سرور'); }
                 return false;
             }
         }
@@ -2621,7 +2626,7 @@ const API_URL = '/api';
                                 const hasExtraInfo = order.related_invoices || order.warehouse_name === 'داخلی';
                                 const safeStatus = order.status || 'Pending';
                                 return `
-                                    <tr class="status-${escapeAttr(safeStatus)}">
+                                    <tr data-refresh-key="order-${escapeAttr(order.id)}" class="status-${escapeAttr(safeStatus)}">
                                         <td><span class="font-black">${escapeHtml(order.priority)}</span></td>
                                         <td>${highlightSearchText(order.seller_name || '-')}</td>
                                         <td class="invoice-cell">
@@ -2655,16 +2660,15 @@ const API_URL = '/api';
             const container = document.getElementById('archiveContainer');
             if (!container) return;
             const orders = getArchiveFilteredOrders();
-            container.innerHTML = '';
 
             if (!orders.length) {
-                container.innerHTML = `
+                PortalLiveRefresh.patchHtml(container, `
                     <div class="empty-state">
                         <div class="empty-icon"><span data-portal-icon="archive"></span></div>
                         <div class="text-slate-800 font-black text-lg mb-2">موردی در آرشیو پیدا نشد</div>
                         <div class="text-sm">فیلترهای جستجوی پیشرفته را تغییر دهید یا پاکسازی کنید.</div>
                     </div>
-                `;
+                `);
                 return;
             }
 
@@ -2678,13 +2682,13 @@ const API_URL = '/api';
             });
 
             const years = Object.keys(grouped).sort((a, b) => String(b).localeCompare(String(a), 'fa'));
-            container.innerHTML = years.map(year => {
+            PortalLiveRefresh.patchHtml(container, years.map(year => {
                 const yearOrdersCount = Object.values(grouped[year]).reduce((sum, monthObj) => sum + Object.values(monthObj).reduce((s, arr) => s + arr.length, 0), 0);
                 const yearId = sanitizeGroupId(`year-${year}`);
                 const isYearOpen = getRememberedGroupOpen(archiveGroupState, yearId, false);
                 const months = Object.keys(grouped[year]).sort((a, b) => Number(b) - Number(a));
                 return `
-                    <div class="archive-group-card">
+                    <div data-refresh-key="archive-${yearId}" class="archive-group-card">
                         <button type="button" class="archive-group-header" onclick="toggleArchiveGroup('${yearId}')">
                             <span class="archive-title-with-count"><span>${escapeHtml(year)}</span><span class="archive-count-chip">${yearOrdersCount} فاکتور</span></span>
                             <span class="flex items-center gap-2">
@@ -2698,7 +2702,7 @@ const API_URL = '/api';
                                 const isMonthOpen = getRememberedGroupOpen(archiveGroupState, monthId, false);
                                 const days = Object.keys(grouped[year][month]).sort((a, b) => Number(b) - Number(a));
                                 return `
-                                    <div class="archive-month-card">
+                                    <div data-refresh-key="archive-${monthId}" class="archive-month-card">
                                         <button type="button" class="archive-group-header" onclick="toggleArchiveGroup('${monthId}')">
                                             <span class="archive-title-with-count"><span>${escapeHtml(year)}/${escapeHtml(month)}</span><span class="archive-count-chip">${monthOrdersCount} فاکتور</span></span>
                                             <span class="flex items-center gap-2">
@@ -2711,7 +2715,7 @@ const API_URL = '/api';
                                                 const dayOrders = grouped[year][month][day];
                                                 const isDayOpen = getRememberedGroupOpen(archiveGroupState, dayId, false);
                                                 return `
-                                                    <div class="archive-day-card">
+                                                    <div data-refresh-key="archive-${dayId}" class="archive-day-card">
                                                         <button type="button" class="archive-group-header" onclick="toggleArchiveGroup('${dayId}')">
                                                             <span class="archive-title-with-count"><span>${escapeHtml(year)}/${escapeHtml(month)}/${escapeHtml(day)}</span><span class="archive-count-chip">${dayOrders.length} فاکتور</span></span>
                                                             <span class="flex items-center gap-2">
@@ -2731,7 +2735,7 @@ const API_URL = '/api';
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join(''));
         }
 
         function setSegmentedJalaliDate(prefix, value) {
@@ -2924,7 +2928,7 @@ const API_URL = '/api';
                 crumbs.push('<span>›</span>');
                 crumbs.push(`<button type="button" onclick="setReportDrillDepth(${index + 1})">${escapeHtml(item.label)}</button>`);
             });
-            container.innerHTML = crumbs.join('');
+            PortalLiveRefresh.patchHtml(container, crumbs.join(''));
         }
 
         function resetReportDrill() {
@@ -2960,7 +2964,7 @@ const API_URL = '/api';
             if (!container) return;
             const total = slices.reduce((sum, item) => sum + item.count, 0);
             if (!total) {
-                container.innerHTML = `
+                PortalLiveRefresh.patchHtml(container, `
                     <div class="report-empty-state">
                         <div>
                             <div class="empty-icon">◌</div>
@@ -2968,7 +2972,7 @@ const API_URL = '/api';
                             <div class="text-xs text-slate-400 mt-1">بازه تاریخ را تغییر دهید یا گزارش‌ها را بروزرسانی کنید.</div>
                         </div>
                     </div>
-                `;
+                `);
                 return;
             }
 
@@ -3005,7 +3009,7 @@ const API_URL = '/api';
                 currentAngle = endAngle;
             });
 
-            container.innerHTML = `
+            PortalLiveRefresh.patchHtml(container, `
                 <div class="report-chart-layout">
                     <div class="report-pie-wrap">
                         <svg class="report-pie-svg" viewBox="0 0 360 360" role="img" aria-label="نمودار دایره‌ای گزارش فاکتورها">
@@ -3016,7 +3020,7 @@ const API_URL = '/api';
                         ${legendParts.join('')}
                     </div>
                 </div>
-            `;
+            `);
         }
 
         function updateReportSummary(orders) {
@@ -3026,7 +3030,7 @@ const API_URL = '/api';
             const completedPercent = total ? Math.round((completed / total) * 100) : 0;
             const setText = (id, value) => {
                 const el = document.getElementById(id);
-                if (el) el.innerText = value;
+                if (el && el.textContent !== String(value)) el.textContent = String(value);
             };
             setText('reportTotalOrders', total);
             setText('reportTotalQuantity', quantity);
@@ -3115,26 +3119,26 @@ const API_URL = '/api';
             }
         }
 
-        async function loadActivityLogUsers() {
-            if (activityLogUsersLoaded) return;
+        async function loadActivityLogUsers(force = false) {
+            if (activityLogUsersLoaded && !force) return true;
             const select = document.getElementById('log_user_id');
-            if (!select) return;
-            select.innerHTML = '<option value="">همه کاربران</option>';
+            if (!select) return false;
             try {
-                const res = await apiFetch(`${API_URL}/activity-logs/users`);
-                if (!res.ok) return;
+                const res = await apiFetch(API_URL+'/activity-logs/users');
+                if (!res.ok) return false;
                 const users = await res.json();
-                users.forEach(user => {
-                    select.innerHTML += `<option value="${escapeAttr(user.id)}">${escapeHtml(user.full_name || '-')} (${escapeHtml(user.username || '-')})</option>`;
-                });
+                if (!Array.isArray(users)) return false;
+                updateLiveSelect(select,[{value:'',label:'همه کاربران'},...users.map(user=>({value:String(user.id),label:(user.full_name || '-')+' ('+(user.username || '-')+')'}))]);
                 activityLogUsersLoaded = true;
-            } catch (e) { console.error(e); }
+                return true;
+            } catch (e) { console.error(e); return false; }
         }
 
-        async function loadActivityLogs() {
+        async function loadActivityLogs(silent = false) {
             const container = document.getElementById('logsContainer');
             if (!container) return;
-            container.innerHTML = '<div class="mini-empty-state">در حال دریافت لاگ‌ها...</div>';
+            const requestId = ++liveLogsRequest;
+            if (!silent && !container.hasChildNodes()) container.innerHTML = '<div class="mini-empty-state">در حال دریافت لاگ‌ها...</div>';
             try {
                 if (!currentServerDatePart) await refreshCurrentServerDatePart();
                 const params = new URLSearchParams();
@@ -3147,13 +3151,16 @@ const API_URL = '/api';
 
                 const res = await apiFetch(`${API_URL}/activity-logs?${params.toString()}`);
                 const logs = await res.json();
-                if (!res.ok) {
-                    container.innerHTML = `<div class="empty-state"><div class="empty-icon"><span data-portal-icon="triangle-alert"></span></div><div class="text-slate-800 font-black text-lg mb-2">خطا در دریافت لاگ‌ها</div><div class="text-sm">${escapeHtml(logs.error || 'ارتباط با سرور بررسی شود.')}</div></div>`;
-                    return;
+                if (requestId !== liveLogsRequest) return false;
+                if (!res.ok || !Array.isArray(logs)) {
+                    if (!silent) container.innerHTML = `<div class="empty-state"><div class="empty-icon"><span data-portal-icon="triangle-alert"></span></div><div class="text-slate-800 font-black text-lg mb-2">خطا در دریافت لاگ‌ها</div><div class="text-sm">${escapeHtml(logs.error || 'ارتباط با سرور بررسی شود.')}</div></div>`;
+                    return false;
                 }
                 renderActivityLogs(logs);
+                return true;
             } catch (e) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-icon"><span data-portal-icon="triangle-alert"></span></div><div class="text-slate-800 font-black text-lg mb-2">خطا در دریافت لاگ‌ها</div><div class="text-sm">ارتباط با سرور بررسی شود.</div></div>';
+                if (!silent && requestId === liveLogsRequest) container.innerHTML = '<div class="empty-state"><div class="empty-icon"><span data-portal-icon="triangle-alert"></span></div><div class="text-slate-800 font-black text-lg mb-2">خطا در دریافت لاگ‌ها</div><div class="text-sm">ارتباط با سرور بررسی شود.</div></div>';
+                return false;
             }
         }
 
@@ -3433,7 +3440,7 @@ const API_URL = '/api';
                                 const hasDetails = hasLogDetails(log.details);
                                 const detailOpen = openLogDetailRows.has(String(log.id));
                                 return `
-                                <tr>
+                                <tr data-refresh-key="log-${escapeAttr(log.id)}">
                                     <td class="datetime-ltr">${escapeHtml(log.created_at_jalali || '-')}</td>
                                     <td>${escapeHtml(log.user_full_name || '-')}</td>
                                     <td>${escapeHtml(log.username || '-')}</td>
@@ -3456,13 +3463,13 @@ const API_URL = '/api';
             const container = document.getElementById('logsContainer');
             if (!container) return;
             if (!logs.length) {
-                container.innerHTML = `
+                PortalLiveRefresh.patchHtml(container, `
                     <div class="empty-state">
                         <div class="empty-icon"><span data-portal-icon="activity"></span></div>
                         <div class="text-slate-800 font-black text-lg mb-2">فعالیتی برای نمایش وجود ندارد</div>
                         <div class="text-sm">فیلترها را تغییر دهید یا بعد از انجام فعالیت جدید دوباره بررسی کنید.</div>
                     </div>
-                `;
+                `);
                 return;
             }
 
@@ -3476,13 +3483,13 @@ const API_URL = '/api';
             });
 
             const years = Object.keys(grouped).sort((a, b) => String(b).localeCompare(String(a), 'fa'));
-            container.innerHTML = years.map(year => {
+            PortalLiveRefresh.patchHtml(container, years.map(year => {
                 const yearCount = Object.values(grouped[year]).reduce((sum, monthObj) => sum + Object.values(monthObj).reduce((s, arr) => s + arr.length, 0), 0);
                 const yearId = sanitizeGroupId(`log-year-${year}`);
                 const isYearOpen = getRememberedGroupOpen(activityGroupState, yearId, isCurrentLogDatePart(year));
                 const months = Object.keys(grouped[year]).sort((a, b) => Number(b) - Number(a));
                 return `
-                    <div class="log-year-card">
+                    <div data-refresh-key="logs-${yearId}" class="log-year-card">
                         <button type="button" class="log-group-header" onclick="toggleActivityGroup('${yearId}')">
                             <span class="archive-title-with-count"><span>${escapeHtml(year)}</span><span class="archive-count-chip">${yearCount} لاگ</span></span>
                             <span id="log-arrow-${yearId}" class="group-arrow ${isYearOpen ? '' : 'is-closed'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
@@ -3494,7 +3501,7 @@ const API_URL = '/api';
                                 const isMonthOpen = getRememberedGroupOpen(activityGroupState, monthId, isCurrentLogDatePart(year, month));
                                 const days = Object.keys(grouped[year][month]).sort((a, b) => Number(b) - Number(a));
                                 return `
-                                    <div class="log-month-card">
+                                    <div data-refresh-key="logs-${monthId}" class="log-month-card">
                                         <button type="button" class="log-group-header" onclick="toggleActivityGroup('${monthId}')">
                                             <span class="archive-title-with-count"><span>${escapeHtml(year)}/${escapeHtml(month)}</span><span class="archive-count-chip">${monthCount} لاگ</span></span>
                                             <span id="log-arrow-${monthId}" class="group-arrow ${isMonthOpen ? '' : 'is-closed'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
@@ -3505,7 +3512,7 @@ const API_URL = '/api';
                                                 const dayLogs = grouped[year][month][day];
                                                 const isDayOpen = getRememberedGroupOpen(activityGroupState, dayId, isCurrentLogDatePart(year, month, day));
                                                 return `
-                                                    <div class="log-day-card">
+                                                    <div data-refresh-key="logs-${dayId}" class="log-day-card">
                                                         <button type="button" class="log-group-header" onclick="toggleActivityGroup('${dayId}')">
                                                             <span class="archive-title-with-count"><span>${escapeHtml(year)}/${escapeHtml(month)}/${escapeHtml(day)}</span><span class="archive-count-chip">${dayLogs.length} لاگ</span></span>
                                                             <span id="log-arrow-${dayId}" class="group-arrow ${isDayOpen ? '' : 'is-closed'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
@@ -3523,28 +3530,42 @@ const API_URL = '/api';
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join(''));
         }
 
+
+        function updateLiveSelect(el, options) {
+            if (!el) return;
+            const value = el.value, previous = el.options[el.selectedIndex];
+            const next = options.slice();
+            if (value && !next.some(o => String(o.value) === value) && previous) next.push({value, label:previous.textContent});
+            const current = Array.from(el.options, o => ({value:o.value,label:o.textContent}));
+            if (PortalLiveRefresh.sameData(current,next)) return;
+            const fragment = document.createDocumentFragment();
+            for (const item of next) {
+                const option = document.createElement('option');
+                option.value = item.value; option.textContent = item.label; fragment.append(option);
+            }
+            el.replaceChildren(fragment); el.value = value;
+        }
 
         async function loadMetadata() {
             try {
                 const res = await apiFetch(`${API_URL}/metadata`);
                 const data = await res.json();
+                if (!res.ok || !data || data.error) return false;
                 metadataStore = data || metadataStore;
 
                 const fill = (id, list, placeholder = 'انتخاب...') => {
                     const el = document.getElementById(id);
                     if (!el) return;
-                    el.innerHTML = `<option value="">${placeholder}</option>`;
-                    (list || []).forEach(item => el.innerHTML += `<option value="${item.id}">${escapeHtml(item.name)}</option>`);
+                    updateLiveSelect(el, [{value:'',label:placeholder}, ...(list || []).map(item => ({value:String(item.id),label:String(item.name)}))]);
                 };
 
                 const fillByName = (id, list, placeholder = 'انتخاب...') => {
                     const el = document.getElementById(id);
                     if (!el) return;
-                    el.innerHTML = `<option value="">${placeholder}</option>`;
-                    (list || []).forEach(item => el.innerHTML += `<option value="${escapeAttr(item.name)}">${escapeHtml(item.name)}</option>`);
+                    updateLiveSelect(el, [{value:'',label:placeholder}, ...(list || []).map(item => ({value:String(item.name),label:String(item.name)}))]);
                 };
 
                 warrantyLookup = {};
@@ -3574,8 +3595,10 @@ const API_URL = '/api';
                 fill('archive_city_id', data.cities, 'همه شهرها');
                 fill('archive_warehouse_id', data.warehouses, 'همه انبارها');
                 fillByName('archive_config_type', data.config_types, 'همه نوع کانفیگ‌ها');
+                return true;
             } catch (e) {
                 console.error(e);
+                return false;
             }
         }
 
@@ -3624,7 +3647,7 @@ const API_URL = '/api';
 
             const setText = (id, value) => {
                 const el = document.getElementById(id);
-                if (el) el.innerText = value;
+                if (el && el.textContent !== String(value)) el.textContent = String(value);
             };
 
             setText('statTotal', total);
@@ -3680,16 +3703,16 @@ const API_URL = '/api';
             });
             
             const container = document.getElementById('groupedTableContainer');
-            container.innerHTML = '';
+            let output = '';
 
             if (filteredOrders.length === 0) {
-                container.innerHTML = `
+                PortalLiveRefresh.patchHtml(container, `
                     <div class="empty-state">
                         <div class="empty-icon"><span data-portal-icon="archive"></span></div>
                         <div class="text-slate-800 font-black text-lg mb-2">موردی برای نمایش پیدا نشد</div>
                         <div class="text-sm">عبارت جستجو یا فیلتر وضعیت را تغییر دهید.</div>
                     </div>
-                `;
+                `);
                 return;
             }
 
@@ -3700,7 +3723,7 @@ const API_URL = '/api';
                 const safeDateId = sanitizeGroupId(date);
                 const isOpen = getRememberedGroupOpen(homeGroupState, safeDateId, isToday || index === 0);
 
-                container.innerHTML += `
+                output += `
                     <div id="date-card-${safeDateId}" class="date-group-card ${isOpen ? 'is-open' : 'is-closed'}">
                         <div class="date-group-header" onclick="toggleGroup('${safeDateId}')">
                             <div class="date-title">
@@ -3758,7 +3781,7 @@ const API_URL = '/api';
                                         const isSearchResult = Boolean(String(searchQuery || '').trim());
 
                                         return `
-                                            <tr class="status-${escapeAttr(safeStatus)} ${isSearchResult ? 'search-result-row' : ''}">
+                                            <tr data-refresh-key="order-${escapeAttr(order.id)}" class="status-${escapeAttr(safeStatus)} ${isSearchResult ? 'search-result-row' : ''}">
                                                 <td>
                                                     <div class="priority-cell">
                                                         ${isToday && hasPermission('orders.priority') ? `
@@ -3819,28 +3842,36 @@ const API_URL = '/api';
                     </div>
                 `;
             });
+            PortalLiveRefresh.patchHtml(container, output);
         }
 
-        async function loadOrders() {
+        async function loadOrders(silent = false) {
+            const requestId = ++liveOrdersRequest;
             try {
                 await refreshCurrentServerDatePart();
 
                 const res = await apiFetch(`${API_URL}/orders`);
-                allOrdersData = await res.json();
+                const data = await res.json();
+                if (!res.ok || !Array.isArray(data) || requestId !== liveOrdersRequest) return false;
+                allOrdersData = data;
 
                 renderOrders();
                 if (activePage === 'archive') renderArchive();
                 if (activePage === 'reports') renderReports();
+                updateLastRefreshTime();
+                return true;
             } catch (e) {
                 console.error(e);
+                if (silent || requestId !== liveOrdersRequest) return false;
                 const container = document.getElementById('groupedTableContainer');
-                container.innerHTML = `
+                if (container && !container.hasChildNodes()) container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon"><span data-portal-icon="triangle-alert"></span></div>
                         <div class="text-slate-800 font-black text-lg mb-2">خطا در دریافت اطلاعات</div>
                         <div class="text-sm">ارتباط با سرور بررسی شود.</div>
                     </div>
                 `;
+                return false;
             }
         }
 
@@ -3916,27 +3947,10 @@ const API_URL = '/api';
         }
 
         function scheduleNextOrdersAutoRefresh() {
-            ordersAutoRefreshTimer = setTimeout(async () => {
-                if (!currentUser || !authToken) {
-                    ordersAutoRefreshTimer = null;
-                    return;
-                }
-
-                const refreshStartedAt = new Date();
-
-                try {
-                    await loadOrders();
-                    if (activePage === 'archive') renderArchive();
-                    updateLastRefreshTime(refreshStartedAt);
-                } catch (e) {
-                    console.error(e);
-                } finally {
-                    if (currentUser && authToken) {
-                        scheduleNextOrdersAutoRefresh();
-                    } else {
-                        ordersAutoRefreshTimer = null;
-                    }
-                }
+            ordersAutoRefreshTimer = setTimeout(() => {
+                if (!currentUser || !authToken) { ordersAutoRefreshTimer = null; return; }
+                try { queueLiveRefresh('all'); }
+                finally { if (currentUser && authToken) scheduleNextOrdersAutoRefresh(); }
             }, millisecondsUntilNextFiveMinuteBoundary());
         }
 
@@ -3953,6 +3967,129 @@ const API_URL = '/api';
             }
         }
 
+        function liveStatus(state) {
+            const el = document.getElementById('liveConnectionStatus');
+            if (!el || el.dataset.state === state) return;
+            el.dataset.state = state;
+            const text = state === 'connected' ? 'ارتباط لحظه‌ای برقرار است' : state === 'offline' ? 'ارتباط لحظه‌ای قطع است؛ در حال تلاش مجدد' : 'در حال اتصال مجدد';
+            el.title = text; el.setAttribute('aria-label', text);
+        }
+
+        function anyModalOpen() {
+            return Array.from(document.querySelectorAll('.modal-overlay, dialog[open]')).some(el => el.getClientRects().length > 0);
+        }
+
+        async function refreshLiveIdentity() {
+            const previous = currentUser;
+            if (!await loadCurrentUser() || !currentUser) return false;
+            if (!PortalLiveRefresh.sameData(previous,currentUser)) {
+                applySecurityUI();
+                const required = {home:'orders.view',archive:'archive.view',reports:'reports.view',logs:'logs.view',users:'users.view',lookups:'lookups.view',account:'account.change_password'}[activePage];
+                if (required && !hasPermission(required) && activePage !== 'home') showPage('home');
+                if (!anyModalOpen()) renderAccountSettings();
+            }
+            return true;
+        }
+
+        function queueLiveRefresh(type) {
+            if (!currentUser || !authToken) return;
+            livePending.add(type);
+            if (liveRefreshTimer === null && !liveFlushing) liveRefreshTimer = setTimeout(flushLiveRefresh, 250);
+        }
+
+        async function flushLiveRefresh() {
+            liveRefreshTimer = null;
+            if (!currentUser || !authToken || liveFlushing) return;
+            liveFlushing = true;
+            const token = authToken;
+            try {
+                const kinds = new Set(livePending); livePending.clear();
+                const all = kinds.has('all'), users = kinds.has('users.changed'), lookups = kinds.has('lookups.changed');
+                const orders = Array.from(kinds).some(t => t.startsWith('orders.'));
+                const logs = Array.from(kinds).some(t => t !== 'page' && t !== 'deferred');
+                if (all || users) await refreshLiveIdentity();
+                if (!currentUser || authToken !== token) return;
+                if (all || users || lookups) liveMetadataPending = true;
+                if (all || orders) liveMediaPending = true;
+                const page = activePage;
+                if (all || kinds.has('page') || (['home','archive','reports'].includes(page) && (orders || lookups || users)) ||
+                    (page === 'logs' && logs) || (page === 'users' && users) || (page === 'lookups' && lookups) || (page === 'account' && users)) {
+                    await refreshPageData(page,true);
+                }
+                if (authToken !== token) return;
+                if (liveMetadataPending && !anyModalOpen()) {
+                    liveMetadataPending = false;
+                    await loadMetadata();
+                }
+                if (liveMediaPending && typeof refreshOpenInvoiceMediaSilently === 'function') {
+                    if (await refreshOpenInvoiceMediaSilently()) liveMediaPending = false;
+                }
+            } catch(e) { console.error(e); }
+            finally {
+                liveFlushing = false;
+                if (currentUser && authToken) {
+                    if (livePending.size) liveRefreshTimer = setTimeout(flushLiveRefresh,250);
+                    else if (liveMetadataPending || liveMediaPending) {
+                        livePending.add('deferred'); liveRefreshTimer = setTimeout(flushLiveRefresh,2000);
+                    }
+                }
+            }
+        }
+
+        function stopLiveConnection() {
+            if (liveConnection) { liveConnection.abort(); liveConnection = null; }
+            clearTimeout(liveRetryTimer); liveRetryTimer = null;
+            clearTimeout(liveRefreshTimer); liveRefreshTimer = null;
+            livePending.clear(); liveRefreshQueued = liveMetadataPending = liveMediaPending = false;
+            liveRetryDelay = 1000;
+        }
+
+        async function startLiveConnection() {
+            if (!currentUser || !authToken || liveConnection) return;
+            clearTimeout(liveRetryTimer); liveRetryTimer = null;
+            const controller = new AbortController(), token = authToken;
+            liveConnection = controller;
+            liveStatus(navigator.onLine === false ? 'offline' : 'connecting');
+            let watchdog, reader;
+            const arm = () => { clearTimeout(watchdog); watchdog = setTimeout(()=>controller.abort(),65000); };
+            try {
+                arm();
+                const res = await fetch(API_URL+'/events', {headers:{Authorization:'Bearer '+token,Accept:'text/event-stream'},cache:'no-store',signal:controller.signal});
+                if (token !== authToken || liveConnection !== controller) return;
+                if (res.status === 401) { logout(false); return; }
+                if (!res.ok || !res.body || !res.headers.get('content-type')?.includes('text/event-stream')) throw Error('SSE unavailable');
+                reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                const parse = PortalLiveRefresh.createSseParser(event => {
+                    if (liveConnection !== controller) return;
+                    arm();
+                    if (event.type === 'connected') {
+                        liveRetryDelay = 1000; liveStatus('connected'); queueLiveRefresh('all');
+                    } else if (event.type !== 'heartbeat') queueLiveRefresh(event.type);
+                });
+                while (liveConnection === controller) {
+                    const result = await reader.read();
+                    if (result.done) break;
+                    parse(decoder.decode(result.value,{stream:true}));
+                }
+            } catch (e) {
+                if (e.name !== 'AbortError') console.debug('Live sync reconnecting',e);
+            } finally {
+                clearTimeout(watchdog);
+                if (reader) { try { await reader.cancel(); } catch {} }
+                if (liveConnection === controller) {
+                    liveConnection = null;
+                    if (currentUser && authToken === token) {
+                        liveStatus('offline');
+                        liveRetryTimer = setTimeout(startLiveConnection,liveRetryDelay);
+                        liveRetryDelay = Math.min(liveRetryDelay*2,30000);
+                    }
+                }
+            }
+        }
+
+        window.addEventListener('online', () => { if (currentUser && authToken) { startLiveConnection(); queueLiveRefresh('all'); } });
+        window.addEventListener('offline', () => { liveStatus('offline'); liveConnection?.abort(); });
         window.addEventListener('pageshow', function(event) {
             if (event.persisted) {
                 clearLoginForm();
