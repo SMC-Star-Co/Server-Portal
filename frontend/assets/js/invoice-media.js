@@ -613,25 +613,13 @@ async function openMediaVideoPreview(file,dialog,body,request){
   const seek=document.createElement('input');seek.type='range';seek.min='0';seek.max='1';seek.step='0.1';seek.value='0';seek.disabled=true;seek.className='invoice-media-video-seek';seek.setAttribute('aria-label','زمان پخش');
   const controls=document.createElement('div');controls.className='invoice-media-video-buttons';
   const button=(label,handler)=>{const b=mediaButton(label,'invoice-media-video-button',handler);b.setAttribute('aria-label',label);return b;};
-  const play=button('پخش',togglePlay);
-  const back=button('−10s',()=>jump(-10));back.setAttribute('aria-label','۱۰ ثانیه عقب');
-  const forward=button('+10s',()=>jump(10));forward.setAttribute('aria-label','۱۰ ثانیه جلو');
+  const play=button('پخش',togglePlay);play.classList.add('invoice-media-video-toggle');
+  const playIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>';
+  const pauseIcon='<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true" focusable="false"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
   const clock=document.createElement('span');clock.className='invoice-media-video-clock';clock.textContent='00:00 / 00:00';
   const mute=button('صدا',()=>{video.muted=!video.muted;});
   const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='0.05';volume.value='1';volume.className='invoice-media-video-volume';volume.setAttribute('aria-label','حجم صدا');
-  const speed=document.createElement('select');speed.className='invoice-media-video-speed';speed.setAttribute('aria-label','سرعت پخش');
-  for(const n of [.5,.75,1,1.25,1.5,2]){const option=document.createElement('option');option.value=String(n);option.textContent=n+'×';option.selected=n===1;speed.append(option);}
-  const full=button('تمام‌صفحه',async()=>{try{
-    if(document.fullscreenElement){await document.exitFullscreen();return;}
-    if(shell.requestFullscreen){await shell.requestFullscreen();return;}
-    if(video.webkitEnterFullscreen){video.webkitEnterFullscreen();return;}
-    showAppToast('تمام‌صفحه در این مرورگر در دسترس نیست.');
-  }catch{showAppToast('تمام‌صفحه در این مرورگر در دسترس نیست.');}});
-  const alternative=button('نسخه سازگار',()=>start(!compatible,true));
-  const reload=button('بارگذاری مجدد',()=>start(compatible,true));
-  const download=button('دانلود اصلی',()=>downloadInvoiceMedia(file));
-  const tools=document.createElement('div');tools.className='invoice-media-video-tools';tools.dir='rtl';tools.append(alternative,reload,download);
-  stage.append(video,status);controls.append(play,back,forward,clock,mute,volume,speed,full);bar.append(seek,controls,tools);shell.append(stage,bar);body.append(shell);body.classList.add('is-video-preview');
+  stage.append(video,status);controls.append(play,clock,mute,volume);bar.append(seek,controls);shell.append(stage,bar);body.append(shell);body.classList.add('is-video-preview');
   function setStatus(text){status.textContent=text||'';status.hidden=!text;}
   function clearPoll(){if(pollTimer!==null){clearTimeout(pollTimer);pollTimer=null;}if(resolvePoll){const done=resolvePoll;resolvePoll=null;done();}}
   function wait(){return new Promise(resolve=>{resolvePoll=resolve;pollTimer=setTimeout(()=>{pollTimer=null;resolvePoll=null;resolve();},3000);});}
@@ -640,21 +628,29 @@ async function openMediaVideoPreview(file,dialog,body,request){
     const time=Number.isFinite(video.currentTime)?video.currentTime:0;
     if(!seeking){seek.max=String(duration||1);seek.value=String(Math.min(time,duration));}
     seek.disabled=!duration||loading||!sourceReady;
-    play.disabled=loading||!sourceReady;back.disabled=forward.disabled=!duration||loading||!sourceReady;
-    play.textContent=video.paused?'پخش':'توقف';play.setAttribute('aria-label',play.textContent);
+    play.disabled=loading||!sourceReady;
+    const paused=video.paused||video.ended;
+    if(play.dataset.paused!==String(paused)){
+      play.innerHTML=paused?playIcon:pauseIcon;play.dataset.paused=String(paused);
+    }
+    play.setAttribute('aria-label',paused?'پخش':'توقف');play.title=paused?'پخش':'توقف';
     mute.textContent=video.muted||video.volume===0?'بی‌صدا':'صدا';mute.setAttribute('aria-pressed',String(video.muted||video.volume===0));
     volume.value=String(video.muted?0:video.volume);
     clock.textContent=mediaVideoClock(time)+' / '+mediaVideoClock(duration);
-    alternative.disabled=loading;reload.disabled=loading;
-    alternative.textContent=compatible?'پخش نسخه اصلی':'نسخه سازگار';
   }
   async function togglePlay(){
     if(!sourceReady||loading)return;
     if(!video.paused){video.pause();return;}
-    try{await video.play();}catch(error){if(active()&&error.name!=='AbortError')setStatus('برای پخش دوباره روی دکمه پخش کلیک کنید.');}
+    if(video.ended)video.currentTime=0;
+    shouldResume=true;
+    try{await video.play();shouldResume=false;}catch(error){
+      if(active()&&sourceReady&&!loading&&error.name!=='AbortError'&&error.name!=='NotSupportedError'){
+        shouldResume=false;setStatus('برای پخش دوباره روی علامت پخش کلیک کنید.');
+      }
+    }
   }
   function jump(delta){if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+delta));}
-  async function start(useCompatible,retry=false){
+  async function start(useCompatible){
     if(!active())return;
     const local=++run;
     controller?.abort();clearPoll();controller=new AbortController();
@@ -663,16 +659,13 @@ async function openMediaVideoPreview(file,dialog,body,request){
     shouldResume=shouldResume||!video.paused;
     loading=true;sourceReady=false;video.pause();video.removeAttribute('src');video.load();
     compatible=useCompatible;
-    if(!useCompatible&&retry)autoAttempted=true;
     sync();
     setStatus(useCompatible?'در حال آماده‌سازی نسخه سازگار ویدیو…':'در حال اتصال به ویدیو…');
     try{
       const deadline=Date.now()+16*60*1000;
-      let first=true;
       while(active()&&local===run){
         const res=await apiFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',signal,
-          body:JSON.stringify({compatible:useCompatible,retry:retry&&first})});
-        first=false;
+          body:JSON.stringify({compatible:useCompatible})});
         const data=await res.json().catch(()=>({}));
         if(!active()||local!==run)return;
         if(!res.ok)throw Error(data.error||'آماده‌سازی ویدیو ناموفق بود.');
@@ -681,7 +674,7 @@ async function openMediaVideoPreview(file,dialog,body,request){
         }
         if(data.status!=='processing'&&data.status!=='busy')throw Error('پاسخ نمایشگر ویدیو معتبر نیست.');
         if(Date.now()>deadline)throw Error('زمان آماده‌سازی طولانی شد؛ دوباره تلاش کنید.');
-        setStatus(data.status==='busy'?'سرور در حال آماده‌سازی ویدیوی دیگری است…':'در حال ساخت نسخه سازگار؛ فایل اصلی بدون تغییر می‌ماند.');
+        setStatus(data.status==='busy'?'در انتظار آماده‌سازی ویدیو…':'در حال آماده‌سازی ویدیو…');
         await wait();
       }
     }catch(error){
@@ -690,7 +683,7 @@ async function openMediaVideoPreview(file,dialog,body,request){
   }
   const events=[];
   function on(target,event,handler){target.addEventListener(event,handler);events.push([target,event,handler]);}
-  for(const name of ['timeupdate','durationchange','play','pause','ended','volumechange','ratechange'])on(video,name,sync);
+  for(const name of ['timeupdate','durationchange','play','pause','ended','volumechange'])on(video,name,sync);
   on(video,'loadedmetadata',()=>{
     if(!sourceReady)return;
     if(restoreTime&&Number.isFinite(video.duration))video.currentTime=Math.min(restoreTime,Math.max(0,video.duration-.1));
@@ -704,7 +697,7 @@ async function openMediaVideoPreview(file,dialog,body,request){
     if(!active()||loading||!sourceReady||!video.error)return;
     const code=video.error.code;
     if(!compatible&&!autoAttempted&&(code===3||code===4)){autoAttempted=true;start(true);return;}
-    sourceReady=false;setStatus('پخش ویدیو ممکن نشد. بارگذاری مجدد یا نسخه سازگار را امتحان کنید؛ دانلود فایل اصلی همیشه جداگانه در دسترس است.');sync();
+    sourceReady=false;setStatus('پخش این ویدیو امکان‌پذیر نیست. پیش‌نمایش را دوباره باز کنید یا فایل را از مدیریت فایل‌ها دانلود کنید.');sync();
   });
   on(video,'click',togglePlay);
   on(video,'keydown',e=>{
@@ -714,13 +707,12 @@ async function openMediaVideoPreview(file,dialog,body,request){
   on(seek,'input',()=>{seeking=true;clock.textContent=mediaVideoClock(Number(seek.value))+' / '+mediaVideoClock(video.duration);});
   on(seek,'change',()=>{if(Number.isFinite(video.duration))video.currentTime=Number(seek.value);seeking=false;sync();});
   on(volume,'input',()=>{video.muted=false;video.volume=Number(volume.value);});
-  on(speed,'change',()=>{video.playbackRate=Number(speed.value);});
   mediaPreviewCleanup=()=>{
     closed=true;++run;controller?.abort();clearPoll();
     for(const [target,event,handler] of events)target.removeEventListener(event,handler);
     video.pause();video.removeAttribute('src');video.load();
-    if(document.fullscreenElement===shell)document.exitFullscreen?.().catch(()=>{});
   };
+  sync();
   if(!dialog.open)dialog.showModal();
   await start(false);
 }
