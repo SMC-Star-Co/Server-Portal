@@ -9,7 +9,11 @@ const invoiceMedia = {
 
 function mediaSize(value) {
   const n = Number(value) || 0;
-  return n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
+  return n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(0) + ' KB';
+}
+function mediaGroupDownloadLabel(files) {
+  const total=files.reduce((sum,file)=>sum+(Math.max(0,Number(file.stored_bytes)||0)),0);
+  return 'دانلود همه (ZIP) · '+mediaSize(total);
 }
 function mediaElement(id) { return document.getElementById(id); }
 const MEDIA_MAX_BYTES = 500 * 1024 * 1024;
@@ -348,7 +352,10 @@ function drawInvoiceMedia() {
   const invoiceAll=files.filter(file=>file.media_scope!=='serial');
   const invoiceFiltered=mediaFilteredFiles(invoiceAll);
   drawMediaRows(mediaElement('invoiceMediaInvoiceList'),invoiceFiltered);
-  mediaElement('invoiceMediaInvoiceDownloadAll').hidden=!invoiceAll.length;
+  const invoiceDownload=mediaElement('invoiceMediaInvoiceDownloadAll');
+  invoiceDownload.hidden=!invoiceAll.length;
+  invoiceDownload.textContent=mediaGroupDownloadLabel(invoiceAll);
+  invoiceDownload.title='مجموع حجم فایل‌های اصلی این بخش، پیش از بسته‌بندی ZIP';
   const groups=mediaElement('invoiceMediaSerialGroups');groups.replaceChildren();
   const serials=invoiceMedia.serials.slice();
   for(const file of files)if(file.media_scope==='serial' && file.serial_number && !serials.includes(file.serial_number))serials.push(file.serial_number);
@@ -381,8 +388,13 @@ function drawInvoiceMedia() {
     const description=document.createElement('div');description.className='invoice-media-serial-file-label';
     const label=document.createElement('span');label.textContent='پرونده سرور';
     const current=document.createElement('strong');current.textContent=mediaSerialLabel(selected);
-    description.append(label,current);top.append(description);
-    if(selectedAll.length)top.append(mediaButton('دانلود همه (ZIP)','secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected)));
+    description.append(label,current);
+    if(selectedAll.length){
+      const download=mediaButton(mediaGroupDownloadLabel(selectedAll),'secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected));
+      download.title='مجموع حجم فایل‌های اصلی این سرور، پیش از بسته‌بندی ZIP';
+      top.append(download);
+    }
+    top.append(description);
     const gallery=document.createElement('div');gallery.className='invoice-media-list';drawMediaRows(gallery,selectedFiles);
     panel.append(top,gallery);groups.append(panel);
   }
@@ -512,6 +524,74 @@ function bindMediaImageZoom(stage,img) {
     img.removeEventListener('lostpointercapture',cancel);img.removeEventListener('keydown',key);
   };
 }
+// Render each PDF page as an authenticated PNG from the server; no browser PDF plug-in required.
+async function openMediaPdfPreview(file,dialog,body,request) {
+  const orderId=invoiceMedia.orderId;
+  const endpoint=API_URL+'/orders/'+orderId+'/media/'+file.id+'/pdf-preview';
+  const controller=new AbortController();
+  let pageController=null,pageUrl=null,zoomCleanup=null,closed=false,loadId=0,current=1,total=0;
+  const active=()=>!closed&&request===mediaPreviewRequest;
+  const shell=document.createElement('div');shell.className='invoice-media-pdf-view';
+  const toolbar=document.createElement('div');toolbar.className='invoice-media-pdf-toolbar';toolbar.dir='rtl';
+  const previous=mediaButton('صفحه قبل','secondary-btn',()=>loadPage(current-1));
+  const next=mediaButton('صفحه بعد','secondary-btn',()=>loadPage(current+1));
+  const number=document.createElement('span');number.className='invoice-media-pdf-page-number';number.setAttribute('aria-live','polite');
+  const stage=document.createElement('div');stage.className='invoice-media-image-stage invoice-media-pdf-stage';
+  const status=document.createElement('div');status.className='invoice-media-pdf-status';status.setAttribute('role','status');
+  toolbar.append(previous,number,next);shell.append(toolbar,stage);body.append(shell);body.classList.add('is-pdf-preview');
+  previous.disabled=true;next.disabled=true;number.textContent='در حال بررسی PDF…';
+  stage.append(status);status.textContent='در حال آماده‌سازی پیش‌نمایش…';
+  mediaPreviewCleanup=()=>{
+    closed=true;controller.abort();pageController?.abort();zoomCleanup?.();
+    if(pageUrl)URL.revokeObjectURL(pageUrl);
+  };
+  if(!dialog.open)dialog.showModal();
+  function showError(message){
+    if(!active())return;
+    zoomCleanup?.();zoomCleanup=null;
+    stage.classList.remove('is-zoomed','is-panning');stage.replaceChildren(status);status.textContent=message;
+    if(pageUrl){URL.revokeObjectURL(pageUrl);pageUrl=null;}
+  }
+  function buttons(busy=false){
+    previous.disabled=busy||current<=1;next.disabled=busy||current>=total;
+    number.textContent=total?'صفحه '+current+' از '+total:'PDF';
+  }
+  async function loadPage(page){
+    if(!active()||page<1||page>total)return;
+    const localId=++loadId;
+    pageController?.abort();pageController=new AbortController();
+    buttons(true);number.textContent='در حال نمایش صفحه '+page+' از '+total;
+    try{
+      const response=await apiFetch(endpoint+'/'+page,{cache:'no-store',signal:pageController.signal});
+      if(!response.ok){
+        const info=await response.json().catch(()=>({}));
+        throw new Error(info.error||'نمایش این صفحه امکان‌پذیر نیست.');
+      }
+      const blob=await response.blob();
+      if(!active()||localId!==loadId)return;
+      zoomCleanup?.();zoomCleanup=null;
+      if(pageUrl)URL.revokeObjectURL(pageUrl);
+      pageUrl=URL.createObjectURL(blob);
+      const img=document.createElement('img');img.alt='صفحه '+page+' از PDF';
+      stage.classList.remove('is-zoomed','is-panning');stage.replaceChildren(img);
+      zoomCleanup=bindMediaImageZoom(stage,img);img.src=pageUrl;
+      current=page;
+    }catch(error){
+      if(active()&&localId===loadId&&error.name!=='AbortError')showError(error.message||'خطا در نمایش PDF');
+    }finally{if(active()&&localId===loadId)buttons();}
+  }
+  try{
+    const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});
+    const info=await response.json().catch(()=>({}));
+    if(!active())return;
+    if(!response.ok)throw new Error(info.error||'این PDF قابل نمایش نیست.');
+    total=Number(info.pages);
+    if(!Number.isSafeInteger(total)||total<1)throw new Error('تعداد صفحات PDF معتبر نیست.');
+    await loadPage(1);
+  }catch(error){
+    if(active()&&error.name!=='AbortError'){showError(error.message||'خطا در آماده‌سازی PDF');buttons();}
+  }
+}
 let mediaPreviewCleanup=null;
 let mediaPreviewRequest=0;
 async function previewInvoiceMedia(file) {
@@ -522,6 +602,10 @@ async function previewInvoiceMedia(file) {
   mediaElement('invoiceMediaPreviewTitle').textContent=mediaServerName(file);
   mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaDate(file)+' · '+mediaSize(file.stored_bytes);
   try{
+    if(file.mime_type==='application/pdf'){
+      await openMediaPdfPreview(file,dialog,body,request);
+      return;
+    }
     const url=await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
     if(request!==mediaPreviewRequest)return;
     const type=String(file.mime_type||'');
@@ -533,8 +617,6 @@ async function previewInvoiceMedia(file) {
       mediaPreviewCleanup=bindMediaImageZoom(stage,element);
     } else if(type.startsWith('video/')) {
       element=document.createElement('video');element.controls=true;element.preload='metadata';body.append(element);
-    } else if(type==='application/pdf') {
-      element=document.createElement('iframe');element.title=mediaServerName(file);body.append(element);
     } else return downloadInvoiceMedia(file);
     if(!dialog.open)dialog.showModal();
     element.src=url;
@@ -544,7 +626,7 @@ function closeInvoiceMediaPreview() {
   ++mediaPreviewRequest;
   if(mediaPreviewCleanup){mediaPreviewCleanup();mediaPreviewCleanup=null;}
   const body=mediaElement('invoiceMediaPreviewBody');
-  if(body){body.replaceChildren();body.classList.remove('is-image-preview');}
+  if(body){body.replaceChildren();body.classList.remove('is-image-preview','is-pdf-preview');}
 }
 function sendMediaBinary({method,url,file,headers={},onProgress=()=>{}}) {
   return new Promise((resolve,reject)=>{

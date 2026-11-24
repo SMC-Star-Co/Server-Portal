@@ -6,7 +6,7 @@ const path = require('node:path');
 const { Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const { toJalaliDateTime } = require('./utils/jalali-date');
 
 const MEDIA_ROOT = process.env.PORTAL_MEDIA_DIR || '/app/media';
@@ -198,7 +198,30 @@ async function generateMediaThumbnail(row,pool) {
   return task;
 }
 
-function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent}) {
+// Bounded, on-demand PDF page rendering; no persistent copies and no shell interpolation.
+let pdfPreviewJobs=0;
+const MAX_PDF_PREVIEW_JOBS=2;
+function runPdfCommand(program,args) {
+  return new Promise((resolve,reject)=>{
+    execFile(program,args,{encoding:'buffer',timeout:30000,killSignal:'SIGKILL',
+      maxBuffer:16*1024*1024,env:{...process.env,LC_ALL:'C'}},(error,stdout)=>{
+      if(error)reject(error);else resolve(stdout);
+    });
+  });
+}
+function pdfPageCount(output){
+  const count=Number(String(output).match(/^Pages:\s*(\d+)\s*$/m)?.[1]);
+  if(!Number.isSafeInteger(count)||count<1)throw new Error('Invalid PDF page count');
+  return count;
+}
+async function withPdfPreview(work){
+  if(pdfPreviewJobs>=MAX_PDF_PREVIEW_JOBS){
+    const error=new Error('PDF preview busy');error.code='PDF_PREVIEW_BUSY';throw error;
+  }
+  pdfPreviewJobs++;
+  try{return await work();}finally{pdfPreviewJobs--;}
+}
+function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,broadcastRealtimeEvent,pdfCommand=runPdfCommand}) {
   // Keep the request as a stream: a 500-MB upload must not be buffered in Node memory.
   fastify.addContentTypeParser('application/octet-stream', (request, payload, done) => done(null,payload));
   fastify.get('/api/orders/:id/media', async(request,reply) => {
@@ -306,6 +329,38 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     return reply.header('Content-Type',mime).header('Cache-Control','private, no-store, max-age=0')
       .header('X-Content-Type-Options','nosniff').send(fs.createReadStream(storedPath(name)));
   });
+
+  // Authenticated by the application's existing /api preHandler, including read-only users.
+  async function getPdfPreview(request,reply,renderPage){
+    const id=validId(request.params.id),mid=validId(request.params.mediaId);
+    if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
+    const page=renderPage?validId(request.params.page):null;
+    if(renderPage&&!page)return fail(reply,400,'شماره صفحه معتبر نیست.');
+    const result=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[id,mid]);
+    if(!result.rowCount)return fail(reply,404,'فایل یافت نشد.');
+    const file=result.rows[0];
+    if(file.mime_type!=='application/pdf')return fail(reply,415,'فایل انتخابی PDF نیست.');
+    try{
+      const source=storedPath(file.stored_name);
+      await fsp.access(source);
+      return await withPdfPreview(async()=>{
+        const pages=pdfPageCount(await pdfCommand('pdfinfo',[source]));
+        reply.header('Cache-Control','private, no-store').header('X-Content-Type-Options','nosniff');
+        if(!renderPage)return {pages};
+        if(page>pages)return fail(reply,404,'صفحه موردنظر وجود ندارد.');
+        const png=await pdfCommand('pdftoppm',['-f',String(page),'-l',String(page),'-singlefile','-scale-to','1800','-png',source]);
+        if(!Buffer.isBuffer(png)||!looksLike('png',png))throw new Error('Invalid PDF preview image');
+        return reply.header('Content-Type','image/png').send(png);
+      });
+    }catch(error){
+      if(error.code==='PDF_PREVIEW_BUSY')return fail(reply,503,'نمایشگر PDF در حال پردازش فایل‌های دیگر است؛ دوباره تلاش کنید.');
+      if(error.code==='ENOENT')return fail(reply,404,'فایل یا ابزار نمایش PDF در سرور موجود نیست.');
+      request.log?.warn?.({err:error},'PDF preview unavailable');
+      return fail(reply,422,'این PDF قابل نمایش نیست؛ ممکن است آسیب‌دیده، رمزدار یا بیش از حد پیچیده باشد. فایل اصلی قابل دانلود است.');
+    }
+  }
+  fastify.get('/api/orders/:id/media/:mediaId/pdf-preview',(request,reply)=>getPdfPreview(request,reply,false));
+  fastify.get('/api/orders/:id/media/:mediaId/pdf-preview/:page',(request,reply)=>getPdfPreview(request,reply,true));
 
   // Rename the user-facing label without touching original file bytes or standardized download names.
   fastify.patch('/api/orders/:id/media/:mediaId',async(request,reply)=>{

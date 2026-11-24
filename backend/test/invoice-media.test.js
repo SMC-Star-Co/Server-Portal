@@ -219,3 +219,29 @@ test('replacement streams original bytes, preserves group/ID, and removes old fi
   assert.equal(fs.existsSync(storedPath(oldStored)),false);
   assert.equal(actions[0].action_type,'order.media_edited');
 });
+
+test('PDF viewer uses authenticated media routes, validates pages and returns PNG without changing originals',async()=>{
+  const stored='b1234567-aaaa-4bbb-8ccc-123456789abc.pdf';
+  const original=Buffer.from('%PDF-1.7\nexample\n');
+  fs.writeFileSync(storedPath(stored),original);
+  const png=Buffer.from([137,80,78,71,13,10,26,10,0,0,0,0]);
+  const handlers=new Map(),app={addContentTypeParser(){}};
+  for(const method of ['get','post','put','patch','delete'])app[method]=(route,opts,callback)=>handlers.set(method.toUpperCase()+' '+route,callback||opts);
+  const calls=[];
+  const pool={query:async(sql,args)=>({rowCount:args[0]===2&&args[1]===5?1:0,rows:[{stored_name:stored,mime_type:'application/pdf'}]})};
+  const {registerInvoiceMedia}=require('../src/invoice-media');
+  registerInvoiceMedia(app,{pool,requirePermission:()=>false,writeActivityLog:async()=>{},broadcastRealtimeEvent:()=>{},
+    pdfCommand:async(program,args)=>{calls.push({program,args});return program==='pdfinfo'?Buffer.from('Pages: 3\n'):png;}});
+  const meta=handlers.get('GET /api/orders/:id/media/:mediaId/pdf-preview');
+  const page=handlers.get('GET /api/orders/:id/media/:mediaId/pdf-preview/:page');
+  const request={params:{id:'2',mediaId:'5',page:'2'},user:{permissions:{}},log:{warn(){}}};
+  const makeReply=()=>Object.assign(mockReply(),{headers:{},header(key,value){this.headers[key]=value;return this;}});
+  assert.deepEqual(await meta(request,makeReply()),{pages:3});
+  const reply=makeReply();await page(request,reply);
+  assert.equal(reply.headers['Content-Type'],'image/png');assert.deepEqual(reply.data,png);
+  assert.ok(calls.some(x=>x.program==='pdftoppm'&&x.args.includes('2')&&x.args.includes('-singlefile')));
+  const bad=makeReply();await page({...request,params:{...request.params,page:'4'}},bad);assert.equal(bad.statusCode,404);
+  const invalid=makeReply();await page({...request,params:{...request.params,page:'../1'}},invalid);assert.equal(invalid.statusCode,400);
+  const other=makeReply();await meta({...request,params:{...request.params,id:'3'}},other);assert.equal(other.statusCode,404);
+  assert.deepEqual(fs.readFileSync(storedPath(stored)),original);
+});
