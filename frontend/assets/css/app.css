@@ -3891,3 +3891,21 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
+/* Credential fields use Latin input direction without changing the surrounding RTL forms. */
+#loginUsername,
+#loginPassword,
+#account_current_password,
+#account_new_password,
+#account_confirm_password,
+#user_username,
+#user_password,
+#reset_password_new,
+#reset_password_confirm {
+    direction: ltr;
+    text-align: left;
+}
+#user_password::placeholder,
+#reset_password_new::placeholder {
+    direction: rtl;
+    text-align: right;
+}
