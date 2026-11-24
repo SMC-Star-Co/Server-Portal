@@ -47,6 +47,7 @@ async function* officeJsonStream(stream,total){
 }
 const PDFJS_ROOT='/opt/portal-pdf/node_modules/pdfjs-dist';
 function pdfAssetPath(name){
+  if(name==='serial-report-assets-v1.js')return '/opt/portal-pdf/serial-report-assets-v1.js';
   // Public library assets only, never user documents or arbitrary paths.
   if(!/^(?:legacy\/build\/pdf(?:\.worker)?\.mjs|web\/pdf_viewer\.css|(?:cmaps|standard_fonts|wasm|iccs|web\/images|legacy\/build)\/[A-Za-z0-9_.-]+\.(?:bcmap|pfb|ttf|otf|wasm|icc|svg|png|mjs|js|bin))$/.test(name))return null;
   if(name.split('/').some(x=>x==='..'||x==='.'))return null;

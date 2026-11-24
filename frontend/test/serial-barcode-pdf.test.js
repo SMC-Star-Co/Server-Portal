@@ -1,31 +1,46 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {code128,makePdf}=require('../assets/js/serial-barcode-pdf.js');
-test('Code128 B checksum, stop pattern, and quiet zones',()=>{
-  const r=code128('AB');
-  assert.deepEqual(r.symbols,[104,33,34,102,106]);
-  assert.equal(r.bars[0].offset,10);
-  assert.equal(r.modules-r.bars.at(-1).offset-r.bars.at(-1).width,10);
-  assert.equal(r.bars.at(-1).width,2);
-  assert.throws(()=>code128(''));
-  assert.throws(()=>code128('سریال'));
+const {code128,makePdf,filename}=require('../assets/js/serial-barcode-pdf.js');
+class MockPdf {
+  constructor(options){this.options=options;this.pages=[[]];this.font='';this.fill='';}
+  addFileToVFS(name,value){this.embedded={name,value};}
+  addFont(){}
+  setProperties(){}
+  setR2L(){}
+  setFont(font){this.font=font;}
+  setFontSize(){}
+  setTextColor(){}
+  setDrawColor(){}
+  setFillColor(color){this.fill=color;}
+  setLineWidth(){}
+  addPage(){this.pages.push([]);}
+  text(value,x,y,options){this.pages.at(-1).push({kind:'text',value,x,y,options,font:this.font});}
+  rect(x,y,w,h,style){this.pages.at(-1).push({kind:'rect',x,y,w,h,style,fill:this.fill});}
+  roundedRect(){}
+  line(){}
+}
+const assets={jsPDF:MockPdf,font:'test-font'};
+test('Code 128 checksum, quiet zones and stop',()=>{
+  const r=code128('AB');assert.deepEqual(r.symbols,[104,33,34,102,106]);assert.equal(r.bars[0].offset,10);assert.equal(r.modules-r.bars.at(-1).offset-r.bars.at(-1).width,10);assert.equal(r.bars.at(-1).width,2);
+  assert.throws(()=>code128(''));assert.throws(()=>code128('سریال'));
 });
-test('PDF preserves exact serial values and order across pages; xref offsets and streams are valid',()=>{
+test('Persian labels and grid, 35 serials in order, black vector bars',()=>{
   const serials=Array.from({length:35},(_,i)=>'SER_'+String(i+1).padStart(3,'0'));
-  const pdf=makePdf(serials,'42451');
-  assert.match(pdf,/\/Count 3\b/);
-  let prev=-1;
-  for(const serial of serials){const next=pdf.indexOf('('+serial+')');assert.ok(next>prev);prev=next;}
-  const xref=Number(pdf.match(/startxref\n(\d+)/)[1]);
-  const lines=pdf.slice(xref).split('\n');
-  const n=Number(lines[1].split(' ')[1]);
-  for(let i=1;i<n;i++)assert.ok(pdf.slice(Number(lines[i+2].slice(0,10))).startsWith(i+' 0 obj\n'));
-  for(const m of pdf.matchAll(/<< \/Length (\d+) >>\nstream\n([\s\S]*?)endstream/g))assert.equal(m[2].length,Number(m[1]));
-  assert.ok(/^[\x00-\x7f]*$/.test(pdf));
+  const pdf=makePdf(serials,'42451',assets);assert.equal(pdf.pages.length,3);assert.equal(pdf.embedded.value,'test-font');
+  const text=pdf.pages.flat().filter(x=>x.kind==='text');
+  assert.deepEqual(text.filter(x=>serials.includes(x.value)).map(x=>x.value),serials);
+  for(const page of pdf.pages){
+    assert.ok(page.some(x=>x.value==='شماره فاکتور'&&x.font==='PortalPersian'));
+    assert.ok(page.some(x=>x.value==='تعداد سرورها'&&x.font==='PortalPersian'));
+    assert.ok(!page.some(x=>x.value==='SERVER SERIAL NUMBERS'));
+    assert.ok(page.some(x=>x.kind==='rect'&&x.style==='S'));
+    assert.ok(page.some(x=>x.kind==='rect'&&x.fill==='#000000'&&x.w>=.749&&x.h===36));
+  }
 });
-test('portrait by default, landscape for long values, rejects unprintable widths',()=>{
-  assert.match(makePdf(['SER-001'],'1'),/\/MediaBox \[0 0 595\.28 841\.89\]/);
-  assert.match(makePdf(['A'.repeat(39)],'1'),/\/MediaBox \[0 0 841\.89 595\.28\]/);
-  assert.throws(()=>makePdf(['A'.repeat(100)],'1'));
-  assert.throws(()=>makePdf([],'1'));
+test('Filename, page orientation and width safeguards',()=>{
+  assert.equal(filename('42451'),'42451 - Serials.pdf');
+  assert.equal(filename('A/01'),'A-01 - Serials.pdf');
+  assert.equal(makePdf(['SER-001'],'1',assets).options.orientation,'portrait');
+  assert.equal(makePdf(['A'.repeat(39)],'1',assets).options.orientation,'landscape');
+  assert.throws(()=>makePdf(['A'.repeat(100)],'1',assets));assert.throws(()=>makePdf([],'1',assets));
 });
