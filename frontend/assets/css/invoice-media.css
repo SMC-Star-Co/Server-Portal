@@ -321,3 +321,33 @@ dialog.invoice-media-preview{width:min(1720px,96vw);max-width:96vw;max-height:96
 .invoice-media-pdf-page-number{min-width:115px;text-align:center;font-size:12px;color:#eff5ff;}
 .invoice-media-pdf-stage{flex:1;min-height:0;height:auto;background:#0c1523;}
 .invoice-media-pdf-status{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;color:#d2dff1;font-size:14px;direction:rtl;}
+
+/* Compact server selector and shared image, video and PDF preview heading. */
+.invoice-media-modal-card .invoice-media-serial-selector{
+  direction:ltr;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,170px),170px));
+  justify-content:start;align-items:stretch;gap:6px;
+}
+.invoice-media-modal-card .invoice-media-serial-chip{
+  direction:ltr;width:100%;min-width:0;min-height:36px;padding:5px 7px;gap:5px;
+  box-sizing:border-box;text-align:left;
+}
+.invoice-media-modal-card .invoice-media-serial-chip strong{direction:ltr;text-align:left;font-size:11px;}
+.invoice-media-modal-card .invoice-media-serial-total{direction:rtl;unicode-bidi:isolate;flex:none;}
+@media(max-width:500px){
+  .invoice-media-modal-card .invoice-media-serial-selector{grid-template-columns:repeat(auto-fill,minmax(min(100%,155px),155px));gap:5px;}
+}
+.invoice-media-preview-header{direction:ltr;text-align:left;gap:12px;padding:11px 16px;}
+.invoice-media-preview-header .invoice-media-preview-name-wrap{flex:1;align-items:flex-start;min-width:0;gap:5px;}
+.invoice-media-preview-header .invoice-media-preview-name-wrap strong{max-width:100%;text-align:left;direction:ltr;}
+.invoice-media-preview-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;min-width:0;}
+.invoice-media-preview-meta span{unicode-bidi:isolate;overflow-wrap:anywhere;}
+#invoiceMediaPreviewSubtitle{white-space:nowrap;}
+#invoiceMediaPreviewUploader{direction:rtl;text-align:left;}
+.invoice-media-preview-close{display:grid;place-items:center;flex:none;width:32px;height:32px;padding:0;border-radius:8px;border:1px solid #425a7d;background:#223551;color:#eff5ff;font:inherit;font-size:24px;line-height:1;cursor:pointer;}
+.invoice-media-preview-close:hover{background:#344d70;border-color:#7692b9;}
+.invoice-media-preview-close:focus-visible{outline:2px solid #9cc5ff;outline-offset:2px;}
+@media(max-width:500px){
+ .invoice-media-preview-header{padding:9px 12px;gap:8px;}
+ .invoice-media-preview-meta{gap:4px 10px;}
+ .invoice-media-preview-meta span{font-size:10px;}
+}

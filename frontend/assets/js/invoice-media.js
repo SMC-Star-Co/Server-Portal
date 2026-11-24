@@ -367,15 +367,15 @@ function drawInvoiceMedia() {
   }else{
     const firstWithFiles=serials.find(serial=>serialFiles.some(file=>file.serial_number===serial));
     if(!invoiceMedia.activeSerial || !serials.includes(invoiceMedia.activeSerial))invoiceMedia.activeSerial=firstWithFiles||serials[0];
-    const selector=document.createElement('div');selector.className='invoice-media-serial-selector';
+    const selector=document.createElement('div');selector.className='invoice-media-serial-selector';selector.dir='ltr';
     selector.setAttribute('role','group');selector.setAttribute('aria-label','انتخاب پرونده سرور');
     serials.forEach(serial=>{
       const count=serialFiles.filter(file=>file.serial_number===serial).length;
       const button=document.createElement('button');button.type='button';button.className='invoice-media-serial-chip';
       button.classList.toggle('is-active',serial===invoiceMedia.activeSerial);
       button.setAttribute('aria-pressed',String(serial===invoiceMedia.activeSerial));button.title=mediaSerialLabel(serial);
-      const name=document.createElement('strong');name.textContent=mediaSerialLabel(serial);
-      const badge=document.createElement('span');badge.className='invoice-media-serial-total';badge.textContent=count.toLocaleString('fa-IR')+' فایل';
+      const name=document.createElement('strong');name.dir='ltr';name.textContent=mediaSerialLabel(serial);
+      const badge=document.createElement('span');badge.className='invoice-media-serial-total';badge.dir='rtl';badge.textContent=count.toLocaleString('fa-IR')+' فایل';
       button.append(name,badge);
       button.addEventListener('click',()=>{invoiceMedia.activeSerial=serial;drawInvoiceMedia()});selector.append(button);
     });
@@ -599,8 +599,11 @@ async function previewInvoiceMedia(file) {
   const body=mediaElement('invoiceMediaPreviewBody');
   closeInvoiceMediaPreview();
   const request=++mediaPreviewRequest;
-  mediaElement('invoiceMediaPreviewTitle').textContent=mediaServerName(file);
-  mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaDate(file)+' · '+mediaSize(file.stored_bytes);
+  const previewTitle=mediaElement('invoiceMediaPreviewTitle');
+  previewTitle.textContent=mediaServerName(file);previewTitle.title=mediaServerName(file);
+  mediaElement('invoiceMediaPreviewSubtitle').textContent=mediaSize(file.stored_bytes)+' · '+mediaDate(file);
+  const uploader=mediaElement('invoiceMediaPreviewUploader');
+  uploader.textContent='ثبت : '+(file.uploader_name||'نامشخص');uploader.title=uploader.textContent;
   try{
     if(file.mime_type==='application/pdf'){
       await openMediaPdfPreview(file,dialog,body,request);

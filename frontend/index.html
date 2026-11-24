@@ -929,13 +929,16 @@
     </dialog>
 
     <dialog id="invoiceMediaPreview" class="invoice-media-preview" aria-label="پیش‌نمایش فایل فنی" onclose="closeInvoiceMediaPreview()">
-        <div class="invoice-media-preview-header">
+        <div class="invoice-media-preview-header" dir="ltr">
             <div class="invoice-media-preview-name-wrap">
-                <strong id="invoiceMediaPreviewTitle"></strong>
-                <span id="invoiceMediaPreviewSubtitle"></span>
+                <strong id="invoiceMediaPreviewTitle" dir="ltr"></strong>
+                <div class="invoice-media-preview-meta">
+                    <span id="invoiceMediaPreviewSubtitle" dir="ltr"></span>
+                    <span id="invoiceMediaPreviewUploader" dir="rtl"></span>
+                </div>
             </div>
             <div class="invoice-media-preview-actions">
-                <button type="button" class="secondary-btn" onclick="document.getElementById('invoiceMediaPreview').close()">بستن</button>
+                <button type="button" class="invoice-media-preview-close" onclick="document.getElementById('invoiceMediaPreview').close()" aria-label="بستن پیش‌نمایش" title="بستن پیش‌نمایش">×</button>
             </div>
         </div>
         <div id="invoiceMediaPreviewBody" class="invoice-media-preview-body"></div>
