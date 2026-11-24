@@ -88,7 +88,7 @@
 .invoice-media-file-card:hover{border-color:#d1dff3;box-shadow:0 10px 24px #213e7014;transform:translateY(-2px)}
 .invoice-media-file-thumb{position:relative;display:grid;place-items:center;aspect-ratio:16/10;width:100%;overflow:hidden;background:linear-gradient(145deg,#f2f6fc,#e8eef8);color:#8a9fb9;border-bottom:1px solid #e9edf5}
 .invoice-media-file-thumb.is-previewable{cursor:pointer}.invoice-media-file-thumb:focus-visible{outline:3px solid #60a5fa;outline-offset:-3px}
-.invoice-media-file-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+ .invoice-media-file-thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 .invoice-media-image-placeholder{font-size:38px;color:#b0c0d5}
 .invoice-media-play{pointer-events:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:41px;height:41px;display:grid;place-items:center;border-radius:50%;background:#0b254dba;color:white;font-size:15px;border:1px solid #ffffff50}
 .invoice-media-thumb-tag{position:absolute;right:9px;top:9px;background:#fffef5ed;color:#3f587b;border:1px solid #f8fafbcc;padding:4px 8px;border-radius:7px;font-size:10px;font-weight:850;backdrop-filter:blur(4px)}
@@ -208,18 +208,23 @@ dialog.invoice-media-preview::backdrop{background:rgba(4,11,24,.88)}
 .invoice-media-view-tabs{margin-bottom:12px;}
 .invoice-media-view-heading{margin:0 0 9px;}
 .invoice-media-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
-.invoice-media-file-card{border-radius:10px;box-shadow:none;}
-.invoice-media-file-thumb{height:86px;min-height:0;max-height:86px;aspect-ratio:auto;width:100%;}
+ .invoice-media-file-card{display:flex;flex-direction:column;align-self:stretch;border-radius:10px;box-shadow:none;min-width:0;}
+.invoice-media-file-actions{flex:0 0 auto;}
+.invoice-media-file-thumb{flex:0 0 auto;position:relative;isolation:isolate;display:grid;place-items:center;aspect-ratio:7/5;width:100%;height:auto;min-height:0;max-height:none;overflow:hidden;}
 .invoice-media-ext-tile{width:47px;height:53px;gap:2px;border-radius:8px;}
 .invoice-media-ext-tile span{font-size:13px;}
 .invoice-media-ext-tile small{font-size:9px;}
 .invoice-media-image-placeholder{font-size:24px;}
 .invoice-media-play{width:30px;height:30px;font-size:11px;}
 .invoice-media-thumb-tag{top:5px;right:5px;padding:2px 5px;font-size:9px;}
-.invoice-media-file-meta{padding:8px 8px 6px;gap:2px;}
-.invoice-media-file-name{font-size:11px;}
+.invoice-media-file-meta{position:static;flex:1 0 auto;min-height:0;padding:9px 10px 8px;gap:5px;background:#fff;}
+ .invoice-media-file-name{font-size:12px;line-height:1.5;direction:ltr;text-align:right;white-space:normal;overflow-wrap:anywhere;}
 .invoice-media-file-download-name{font-size:9px;}
-.invoice-media-file-detail{font-size:9px;margin-top:1px;}
+.invoice-media-file-detail{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;column-gap:8px;row-gap:3px;font-size:10px;margin-top:0;line-height:1.5;font-variant-numeric:tabular-nums;}
+.invoice-media-file-date,.invoice-media-file-size{white-space:nowrap;direction:ltr;unicode-bidi:isolate;}
+.invoice-media-file-size{color:#617a96;}
+.invoice-media-edit-current-name{display:block;overflow-wrap:anywhere;color:#1c3558;font-size:13px;padding:10px 12px;background:#f3f7fd;border:1px solid #dce5f1;border-radius:10px;text-align:right;}
+.invoice-media-modal-card .invoice-media-modal-footer{justify-content:flex-end;}
 .invoice-media-uploaded-by{font-size:9px;}
 .invoice-media-file-actions{gap:4px;padding:6px 7px 8px;margin:0;}
 .invoice-media-file-actions button{font-size:9px;padding:5px 7px;}
@@ -247,7 +252,7 @@ dialog.invoice-media-preview::backdrop{background:rgba(4,11,24,.88)}
  .invoice-media-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
  .invoice-media-serial-selector{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;}
  .invoice-media-serial-chip{min-height:36px;padding:5px 7px;}
- .invoice-media-file-thumb{height:72px;max-height:72px;}
+ .invoice-media-file-thumb{height:auto;max-height:none;aspect-ratio:7/5;}
  .invoice-media-serial-file-panel{padding:9px;}
 }
 @media(max-width:380px){

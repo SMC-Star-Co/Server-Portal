@@ -103,7 +103,7 @@ function mockMediaApp() {
     if(sql.includes('SELECT invoice_number,serials FROM orders'))return {rowCount:1,rows:[{invoice_number:'12345',serials:'SER1,SER2'}]};
     if(sql.includes('SELECT serials FROM orders'))return {rowCount:1,rows:[{serials:'SER1,SER2'}]};
     if(sql.includes('SELECT id,original_name,COALESCE(download_name'))return {rowCount:1,rows:[{
-      id:5,original_name:'old.pdf',download_name:'SER1-01.pdf',mime_type:'application/pdf',stored_bytes:1000,media_scope:'serial',serial_number:'SER1'
+      id:5,original_name:'old.pdf',download_name:'SER1-01.pdf',mime_type:'application/pdf',stored_bytes:1000,media_scope:'serial',serial_number:'SER1',created_at:new Date('2026-10-28T06:53:00Z')
     }]};
     if(sql.includes('SELECT original_name,download_name FROM invoice_media'))return {rowCount:1,rows:[{original_name:'old.pdf',download_name:'SER1-01.pdf'}]};
     if(sql.includes('UPDATE invoice_media SET original_name='))return {rowCount:1,rows:[{id:5,original_name:args[0]}]};
@@ -132,6 +132,9 @@ test('all authenticated categories can list attachments without technician or or
     assert.equal(response.can_edit,false);
     assert.equal(response.can_delete,false);
     assert.deepEqual(response.serials,['SER1','SER2']);
+    const {toJalaliDateTime}=require('../src/utils/jalali-date');
+    assert.equal(response.files[0].created_at_jalali,toJalaliDateTime(new Date('2026-10-28T06:53:00Z')));
+    assert.match(response.files[0].created_at_jalali,/^\d{4}\/\d{2}\/\d{2} - \d{2}:\d{2}$/);
   }
 });
 test('backend blocks upload, edit, replace and delete when permission is revoked',async()=>{

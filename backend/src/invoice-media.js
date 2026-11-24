@@ -7,6 +7,7 @@ const { Transform } = require('node:stream');
 const { pipeline } = require('node:stream/promises');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { spawn } = require('node:child_process');
+const { toJalaliDateTime } = require('./utils/jalali-date');
 
 const MEDIA_ROOT = process.env.PORTAL_MEDIA_DIR || '/app/media';
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -149,7 +150,8 @@ async function generateMediaThumbnail(row,pool) {
   if (row.thumbnail_name) {
     try { await fsp.access(storedPath(row.thumbnail_name));return row.thumbnail_name; } catch {}
   }
-  const key=String(row.id);
+  // A replaced file can have the same media ID but different content.
+  const key=String(row.id)+':'+row.stored_name;
   if(thumbnailJobs.has(key))return thumbnailJobs.get(key);
   const task=(async()=>{
     const source=storedPath(row.stored_name);
@@ -207,7 +209,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     if(!order.rowCount)return fail(reply,404,'فاکتور یافت نشد.');
     const result=await attachmentsForOrder(pool,id);
     return {invoice_number:order.rows[0].invoice_number,serials:parseSerials(order.rows[0].serials),
-      files:result.rows,can_upload:canMedia(request.user,'upload'),
+      files:result.rows.map(row=>({...row,created_at_jalali:row.created_at&&!Number.isNaN(new Date(row.created_at).getTime())?toJalaliDateTime(row.created_at):null})),can_upload:canMedia(request.user,'upload'),
       can_edit:canMedia(request.user,'edit'),can_delete:canMedia(request.user,'delete'),
       can_manage:canMedia(request.user,'upload')||canMedia(request.user,'edit')||canMedia(request.user,'delete')};
   });
@@ -301,7 +303,7 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     const name=await generateMediaThumbnail(row,pool);
     if(!name)return fail(reply,404,'ساخت پیش‌نمایش امکان‌پذیر نشد.');
     const mime=name.endsWith('.webp')?'image/webp':'image/jpeg';
-    return reply.header('Content-Type',mime).header('Cache-Control','private,max-age=180')
+    return reply.header('Content-Type',mime).header('Cache-Control','private, no-store, max-age=0')
       .header('X-Content-Type-Options','nosniff').send(fs.createReadStream(storedPath(name)));
   });
 
