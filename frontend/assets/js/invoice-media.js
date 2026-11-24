@@ -592,6 +592,139 @@ async function openMediaPdfPreview(file,dialog,body,request) {
     if(active()&&error.name!=='AbortError'){showError(error.message||'خطا در آماده‌سازی PDF');buttons();}
   }
 }
+// Local player UI. Native browser decoding keeps server CPU/RAM use minimal.
+function mediaVideoClock(seconds){
+  const value=Number(seconds);
+  const n=Number.isFinite(value)?Math.max(0,Math.floor(value)):0;
+  const h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
+  return (h?h+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+async function openMediaVideoPreview(file,dialog,body,request){
+  const orderId=invoiceMedia.orderId;
+  const endpoint=API_URL+'/orders/'+orderId+'/media/'+file.id+'/video-preview';
+  let closed=false,run=0,controller=null,pollTimer=null,resolvePoll=null,compatible=false,loading=false,seeking=false,autoAttempted=false,restoreTime=0,shouldResume=false,sourceReady=false;
+  const active=()=>!closed&&request===mediaPreviewRequest;
+  const shell=document.createElement('div');shell.className='invoice-media-video-player';shell.dir='ltr';
+  const stage=document.createElement('div');stage.className='invoice-media-video-stage';
+  const video=document.createElement('video');video.preload='metadata';video.playsInline=true;video.controls=false;video.tabIndex=0;
+  video.setAttribute('aria-label','پخش ویدیو');
+  const status=document.createElement('div');status.className='invoice-media-video-status';status.dir='rtl';status.setAttribute('role','status');
+  const bar=document.createElement('div');bar.className='invoice-media-video-controls';
+  const seek=document.createElement('input');seek.type='range';seek.min='0';seek.max='1';seek.step='0.1';seek.value='0';seek.disabled=true;seek.className='invoice-media-video-seek';seek.setAttribute('aria-label','زمان پخش');
+  const controls=document.createElement('div');controls.className='invoice-media-video-buttons';
+  const button=(label,handler)=>{const b=mediaButton(label,'invoice-media-video-button',handler);b.setAttribute('aria-label',label);return b;};
+  const play=button('پخش',togglePlay);
+  const back=button('−10s',()=>jump(-10));back.setAttribute('aria-label','۱۰ ثانیه عقب');
+  const forward=button('+10s',()=>jump(10));forward.setAttribute('aria-label','۱۰ ثانیه جلو');
+  const clock=document.createElement('span');clock.className='invoice-media-video-clock';clock.textContent='00:00 / 00:00';
+  const mute=button('صدا',()=>{video.muted=!video.muted;});
+  const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='1';volume.step='0.05';volume.value='1';volume.className='invoice-media-video-volume';volume.setAttribute('aria-label','حجم صدا');
+  const speed=document.createElement('select');speed.className='invoice-media-video-speed';speed.setAttribute('aria-label','سرعت پخش');
+  for(const n of [.5,.75,1,1.25,1.5,2]){const option=document.createElement('option');option.value=String(n);option.textContent=n+'×';option.selected=n===1;speed.append(option);}
+  const full=button('تمام‌صفحه',async()=>{try{
+    if(document.fullscreenElement){await document.exitFullscreen();return;}
+    if(shell.requestFullscreen){await shell.requestFullscreen();return;}
+    if(video.webkitEnterFullscreen){video.webkitEnterFullscreen();return;}
+    showAppToast('تمام‌صفحه در این مرورگر در دسترس نیست.');
+  }catch{showAppToast('تمام‌صفحه در این مرورگر در دسترس نیست.');}});
+  const alternative=button('نسخه سازگار',()=>start(!compatible,true));
+  const reload=button('بارگذاری مجدد',()=>start(compatible,true));
+  const download=button('دانلود اصلی',()=>downloadInvoiceMedia(file));
+  const tools=document.createElement('div');tools.className='invoice-media-video-tools';tools.dir='rtl';tools.append(alternative,reload,download);
+  stage.append(video,status);controls.append(play,back,forward,clock,mute,volume,speed,full);bar.append(seek,controls,tools);shell.append(stage,bar);body.append(shell);body.classList.add('is-video-preview');
+  function setStatus(text){status.textContent=text||'';status.hidden=!text;}
+  function clearPoll(){if(pollTimer!==null){clearTimeout(pollTimer);pollTimer=null;}if(resolvePoll){const done=resolvePoll;resolvePoll=null;done();}}
+  function wait(){return new Promise(resolve=>{resolvePoll=resolve;pollTimer=setTimeout(()=>{pollTimer=null;resolvePoll=null;resolve();},3000);});}
+  function sync(){
+    const duration=Number.isFinite(video.duration)&&video.duration>0?video.duration:0;
+    const time=Number.isFinite(video.currentTime)?video.currentTime:0;
+    if(!seeking){seek.max=String(duration||1);seek.value=String(Math.min(time,duration));}
+    seek.disabled=!duration||loading||!sourceReady;
+    play.disabled=loading||!sourceReady;back.disabled=forward.disabled=!duration||loading||!sourceReady;
+    play.textContent=video.paused?'پخش':'توقف';play.setAttribute('aria-label',play.textContent);
+    mute.textContent=video.muted||video.volume===0?'بی‌صدا':'صدا';mute.setAttribute('aria-pressed',String(video.muted||video.volume===0));
+    volume.value=String(video.muted?0:video.volume);
+    clock.textContent=mediaVideoClock(time)+' / '+mediaVideoClock(duration);
+    alternative.disabled=loading;reload.disabled=loading;
+    alternative.textContent=compatible?'پخش نسخه اصلی':'نسخه سازگار';
+  }
+  async function togglePlay(){
+    if(!sourceReady||loading)return;
+    if(!video.paused){video.pause();return;}
+    try{await video.play();}catch(error){if(active()&&error.name!=='AbortError')setStatus('برای پخش دوباره روی دکمه پخش کلیک کنید.');}
+  }
+  function jump(delta){if(Number.isFinite(video.duration)&&video.duration>0)video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+delta));}
+  async function start(useCompatible,retry=false){
+    if(!active())return;
+    const local=++run;
+    controller?.abort();clearPoll();controller=new AbortController();
+    const signal=controller.signal;
+    restoreTime=Math.max(restoreTime,Number(video.currentTime)||0);
+    shouldResume=shouldResume||!video.paused;
+    loading=true;sourceReady=false;video.pause();video.removeAttribute('src');video.load();
+    compatible=useCompatible;
+    if(!useCompatible&&retry)autoAttempted=true;
+    sync();
+    setStatus(useCompatible?'در حال آماده‌سازی نسخه سازگار ویدیو…':'در حال اتصال به ویدیو…');
+    try{
+      const deadline=Date.now()+16*60*1000;
+      let first=true;
+      while(active()&&local===run){
+        const res=await apiFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',signal,
+          body:JSON.stringify({compatible:useCompatible,retry:retry&&first})});
+        first=false;
+        const data=await res.json().catch(()=>({}));
+        if(!active()||local!==run)return;
+        if(!res.ok)throw Error(data.error||'آماده‌سازی ویدیو ناموفق بود.');
+        if(data.status==='ready'&&data.url){
+          loading=false;sourceReady=true;video.src=data.url;video.load();sync();return;
+        }
+        if(data.status!=='processing'&&data.status!=='busy')throw Error('پاسخ نمایشگر ویدیو معتبر نیست.');
+        if(Date.now()>deadline)throw Error('زمان آماده‌سازی طولانی شد؛ دوباره تلاش کنید.');
+        setStatus(data.status==='busy'?'سرور در حال آماده‌سازی ویدیوی دیگری است…':'در حال ساخت نسخه سازگار؛ فایل اصلی بدون تغییر می‌ماند.');
+        await wait();
+      }
+    }catch(error){
+      if(active()&&local===run&&error.name!=='AbortError'){loading=false;sourceReady=false;setStatus(error.message||'پخش ویدیو ناموفق بود.');sync();}
+    }
+  }
+  const events=[];
+  function on(target,event,handler){target.addEventListener(event,handler);events.push([target,event,handler]);}
+  for(const name of ['timeupdate','durationchange','play','pause','ended','volumechange','ratechange'])on(video,name,sync);
+  on(video,'loadedmetadata',()=>{
+    if(!sourceReady)return;
+    if(restoreTime&&Number.isFinite(video.duration))video.currentTime=Math.min(restoreTime,Math.max(0,video.duration-.1));
+    restoreTime=0;setStatus('');sync();
+    if(shouldResume){shouldResume=false;video.play().catch(()=>{});}
+  });
+  on(video,'waiting',()=>{if(sourceReady&&!video.paused)setStatus('در حال بارگذاری ویدیو…');});
+  on(video,'playing',()=>setStatus(''));
+  on(video,'canplay',()=>{if(sourceReady)setStatus('');});
+  on(video,'error',()=>{
+    if(!active()||loading||!sourceReady||!video.error)return;
+    const code=video.error.code;
+    if(!compatible&&!autoAttempted&&(code===3||code===4)){autoAttempted=true;start(true);return;}
+    sourceReady=false;setStatus('پخش ویدیو ممکن نشد. بارگذاری مجدد یا نسخه سازگار را امتحان کنید؛ دانلود فایل اصلی همیشه جداگانه در دسترس است.');sync();
+  });
+  on(video,'click',togglePlay);
+  on(video,'keydown',e=>{
+    if(e.key===' '||e.key==='Enter'){e.preventDefault();togglePlay();}
+    else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();jump(e.key==='ArrowRight'?10:-10);}
+  });
+  on(seek,'input',()=>{seeking=true;clock.textContent=mediaVideoClock(Number(seek.value))+' / '+mediaVideoClock(video.duration);});
+  on(seek,'change',()=>{if(Number.isFinite(video.duration))video.currentTime=Number(seek.value);seeking=false;sync();});
+  on(volume,'input',()=>{video.muted=false;video.volume=Number(volume.value);});
+  on(speed,'change',()=>{video.playbackRate=Number(speed.value);});
+  mediaPreviewCleanup=()=>{
+    closed=true;++run;controller?.abort();clearPoll();
+    for(const [target,event,handler] of events)target.removeEventListener(event,handler);
+    video.pause();video.removeAttribute('src');video.load();
+    if(document.fullscreenElement===shell)document.exitFullscreen?.().catch(()=>{});
+  };
+  if(!dialog.open)dialog.showModal();
+  await start(false);
+}
+
 let mediaPreviewCleanup=null;
 let mediaPreviewRequest=0;
 async function previewInvoiceMedia(file) {
@@ -609,6 +742,10 @@ async function previewInvoiceMedia(file) {
       await openMediaPdfPreview(file,dialog,body,request);
       return;
     }
+    if(String(file.mime_type||'').startsWith('video/')){
+      await openMediaVideoPreview(file,dialog,body,request);
+      return;
+    }
     const url=await requestMediaTicket({kind:'file',file_id:file.id,inline:true});
     if(request!==mediaPreviewRequest)return;
     const type=String(file.mime_type||'');
@@ -618,8 +755,6 @@ async function previewInvoiceMedia(file) {
       const stage=document.createElement('div');stage.className='invoice-media-image-stage';
       stage.append(element);body.append(stage);body.classList.add('is-image-preview');
       mediaPreviewCleanup=bindMediaImageZoom(stage,element);
-    } else if(type.startsWith('video/')) {
-      element=document.createElement('video');element.controls=true;element.preload='metadata';body.append(element);
     } else return downloadInvoiceMedia(file);
     if(!dialog.open)dialog.showModal();
     element.src=url;
@@ -629,7 +764,7 @@ function closeInvoiceMediaPreview() {
   ++mediaPreviewRequest;
   if(mediaPreviewCleanup){mediaPreviewCleanup();mediaPreviewCleanup=null;}
   const body=mediaElement('invoiceMediaPreviewBody');
-  if(body){body.replaceChildren();body.classList.remove('is-image-preview','is-pdf-preview');}
+  if(body){body.replaceChildren();body.classList.remove('is-image-preview','is-pdf-preview','is-video-preview');}
 }
 function sendMediaBinary({method,url,file,headers={},onProgress=()=>{}}) {
   return new Promise((resolve,reject)=>{

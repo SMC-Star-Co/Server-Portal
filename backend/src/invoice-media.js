@@ -8,6 +8,7 @@ const { pipeline } = require('node:stream/promises');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { toJalaliDateTime } = require('./utils/jalali-date');
+const { sendVideoRange, createVideoPreviewCache } = require('./video-preview');
 
 const MEDIA_ROOT = process.env.PORTAL_MEDIA_DIR || '/app/media';
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -15,6 +16,8 @@ const MEDIA_QUOTA = 100 * 1024 * 1024 * 1024;
 const RESERVE_BYTES = 2 * 1024 * 1024 * 1024;
 const TRANSFER_TTL = 120000;
 const transferTickets = new Map();
+const VIDEO_TICKET_IDLE=30*60*1000, VIDEO_TICKET_MAX=4*60*60*1000;
+const videoPreviewCache=createVideoPreviewCache(MEDIA_ROOT);
 const TYPE_MAP = Object.freeze({
   jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp',
   heic:'image/heic', heif:'image/heif', gif:'image/gif', bmp:'image/bmp',
@@ -89,10 +92,13 @@ function downloadName(invoice,scope,serial,seq,ext) {
   return (scope === 'serial' ? serial : (base || 'invoice')) + '-' + number + '.' + ext;
 }
 async function cleanMedia(rows) {
-  for (const item of rows || []) for (const name of [item.stored_name,item.thumbnail_name]) {
-    if (name) await fsp.unlink(storedPath(name)).catch(err => {
-      if (err.code !== 'ENOENT') console.error('Media cleanup:',err);
-    });
+  for (const item of rows || []) {
+    for (const name of [item.stored_name,item.thumbnail_name]) {
+      if (name) await fsp.unlink(storedPath(name)).catch(err => {
+        if (err.code !== 'ENOENT') console.error('Media cleanup:',err);
+      });
+    }
+    await videoPreviewCache.remove(item.stored_name);
   }
 }
 async function initMediaTable(client) {
@@ -122,7 +128,8 @@ function cleanupTickets() {
 function issueTicket(payload) {
   cleanupTickets();
   const token = randomBytes(32).toString('hex');
-  transferTickets.set(token, {...payload, expires:Date.now()+TRANSFER_TTL});
+  const now=Date.now(),video=payload.kind==='video';
+  transferTickets.set(token, {...payload, expires:now+(video?VIDEO_TICKET_IDLE:TRANSFER_TTL),hardExpires:now+(video?VIDEO_TICKET_MAX:TRANSFER_TTL)});
   return token;
 }
 function fail(reply,code,message) { return reply.code(code).send({error:message}); }
@@ -477,6 +484,35 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     return {success:true};
   });
 
+  // Original playback is immediate. A compatibility copy is requested only after a browser error or user action.
+  fastify.post('/api/orders/:id/media/:mediaId/video-preview',async(request,reply)=>{
+    const id=validId(request.params.id),mid=validId(request.params.mediaId);
+    if(!id||!mid)return fail(reply,400,'شناسه نامعتبر است.');
+    const found=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[id,mid]);
+    if(!found.rowCount)return fail(reply,404,'فایل یافت نشد.');
+    const file=found.rows[0];
+    if(!previewableVideo(file.mime_type))return fail(reply,415,'فایل انتخابی ویدیو نیست.');
+    const compatible=request.body?.compatible===true;
+    try{
+      const original=storedPath(file.stored_name);
+      await fsp.access(original);
+      if(compatible){
+        const state=await videoPreviewCache.prepare(file.stored_name,original,request.body?.retry===true);
+        if(state.status!=='ready'){
+          reply.header('Cache-Control','private, no-store');
+          if(state.status==='failed')return fail(reply,422,state.reason==='space'?'فضای ذخیره پیش‌نمایش کافی نیست. فایل اصلی قابل دانلود است.':'ساخت نسخه سازگار ممکن نشد. فایل اصلی قابل دانلود است.');
+          return reply.code(202).send(state);
+        }
+      }
+      const ticket=issueTicket({kind:'video',orderId:id,fileId:mid,storedName:file.stored_name,compatible});
+      return reply.header('Cache-Control','private, no-store').send({status:'ready',url:'/api/media-transfer/'+ticket,expires_in:VIDEO_TICKET_IDLE/1000,compatible});
+    }catch(error){
+      if(error.code==='ENOENT')return fail(reply,404,'ویدیو روی دیسک موجود نیست.');
+      request.log?.warn?.({err:error},'Video preview unavailable');
+      return fail(reply,500,'آماده‌سازی ویدیو ناموفق بود.');
+    }
+  });
+
   fastify.post('/api/orders/:id/media/ticket',async(request,reply)=>{
     const id=validId(request.params.id);
     if(!id)return fail(reply,400,'شناسه فاکتور نامعتبر است.');
@@ -508,6 +544,23 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,writeActivityLog,b
     const ticket=transferTickets.get(String(request.params.ticket||''));
     if(!ticket||ticket.expires<Date.now())return fail(reply,404,'لینک دانلود منقضی شده است.');
     const id=ticket.orderId;
+    if(ticket.kind==='video'){
+      const r=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[id,ticket.fileId]);
+      if(!r.rowCount||r.rows[0].stored_name!==ticket.storedName||!previewableVideo(r.rows[0].mime_type))
+        return fail(reply,404,'نسخه ویدیو تغییر کرده است؛ پیش‌نمایش را دوباره باز کنید.');
+      const file=r.rows[0];
+      try{
+        const filepath=ticket.compatible?await videoPreviewCache.existing(file.stored_name,true):storedPath(file.stored_name);
+        if(!filepath)return fail(reply,404,'نسخه سازگار موجود نیست؛ پیش‌نمایش را دوباره باز کنید.');
+        ticket.expires=Math.min(ticket.hardExpires,Date.now()+VIDEO_TICKET_IDLE);
+        return await sendVideoRange(request,reply,filepath,ticket.compatible?'video/mp4':file.mime_type,file.stored_name+(ticket.compatible?'-compatible':'-original'));
+      }catch(error){
+        if(error.code==='ENOENT')return fail(reply,404,'ویدیو روی دیسک موجود نیست.');
+        request.log?.warn?.({err:error},'Video streaming error');
+        if(!reply.sent)return fail(reply,500,'پخش ویدیو ناموفق بود.');
+      }
+      return;
+    }
     if(ticket.kind==='file'){
       const r=await pool.query('SELECT * FROM invoice_media WHERE order_id=$1 AND id=$2',[id,ticket.fileId]);
       if(!r.rowCount)return fail(reply,404,'فایل یافت نشد.');

@@ -351,3 +351,25 @@ dialog.invoice-media-preview{width:min(1720px,96vw);max-width:96vw;max-height:96
  .invoice-media-preview-meta{gap:4px 10px;}
  .invoice-media-preview-meta span{font-size:10px;}
 }
+
+/* Local, browser-decoded video player. No remote scripts or native control skin. */
+.invoice-media-preview-body.is-video-preview{padding:0;overflow:hidden;}
+.invoice-media-video-player{width:100%;height:100%;min-height:0;display:flex;flex-direction:column;background:#0b1321;color:#eef5ff;}
+.invoice-media-video-stage{flex:1;min-height:0;position:relative;display:grid;place-items:center;overflow:hidden;background:#070d18;}
+.invoice-media-video-stage video{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;cursor:pointer;}
+.invoice-media-video-status{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:9px 14px;border:1px solid #425a7d;border-radius:9px;background:#17243aec;color:#e4edfa;font-size:12px;text-align:center;pointer-events:none;}
+.invoice-media-video-status[hidden]{display:none;}
+.invoice-media-video-controls{flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 14px;background:#17243a;border-top:1px solid #30445f;}
+.invoice-media-video-seek{width:100%;accent-color:#78a8ff;cursor:pointer;margin:0;}
+.invoice-media-video-buttons,.invoice-media-video-tools{display:flex;align-items:center;flex-wrap:wrap;gap:7px;}
+.invoice-media-video-buttons .invoice-media-video-clock{margin-right:auto;}
+.invoice-media-video-button,.invoice-media-video-speed{font:inherit;font-size:12px;padding:6px 9px;border:1px solid #425a7d;border-radius:7px;background:#223551;color:#eff5ff;cursor:pointer;white-space:nowrap;}
+.invoice-media-video-button:disabled{opacity:.45;cursor:default;}
+.invoice-media-video-button:not(:disabled):hover,.invoice-media-video-speed:hover{background:#344d70;}
+.invoice-media-video-button:focus-visible,.invoice-media-video-seek:focus-visible,.invoice-media-video-speed:focus-visible,.invoice-media-video-volume:focus-visible{outline:2px solid #9cc5ff;outline-offset:2px;}
+.invoice-media-video-clock{font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;color:#bdd1ed;}
+.invoice-media-video-volume{width:65px;accent-color:#78a8ff;cursor:pointer;}
+.invoice-media-video-tools{justify-content:flex-start;border-top:1px solid #30445f;padding-top:7px;}
+.invoice-media-video-tools .invoice-media-video-button{font-size:11px;padding:5px 8px;}
+.invoice-media-video-player:fullscreen{width:100vw;height:100vh;}
+@media(max-width:500px){.invoice-media-video-controls{padding:8px;gap:6px;}.invoice-media-video-buttons,.invoice-media-video-tools{gap:5px;}.invoice-media-video-button,.invoice-media-video-speed{font-size:10px;padding:5px 6px;}.invoice-media-video-volume{width:45px;}}

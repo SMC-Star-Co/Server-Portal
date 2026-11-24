@@ -802,7 +802,7 @@ fastify.addHook('preHandler', async (request, reply) => {
   if (!request.url.startsWith('/api/')) return;
   if (request.url.startsWith('/api/auth/login')) return;
   if (request.url.startsWith('/api/events')) return;
-  // A 120-second random media ticket is issued only after authenticated permission checks.
+  // Short-lived random media tickets are issued only after authenticated access; video leases renew on range requests.
   if (request.url.startsWith('/api/media-transfer/')) return;
   await authenticateRequest(request, reply);
 });
