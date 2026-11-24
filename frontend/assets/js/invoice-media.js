@@ -554,76 +554,64 @@ function loadMediaPdfLibrary(){
   return mediaPdfLibrary;
 }
 // Fetch PDF bytes explicitly, never navigate to a file URL. Keep large PDFs range-based.
-const MEDIA_PDF_CHUNK=256*1024,MEDIA_PDF_SMALL=16*1024*1024;
+// JSON transport keeps document preview separate from browser/IDM file downloads.
+const MEDIA_PDF_CHUNK=512*1024,MEDIA_PDF_LIMIT=500*1024*1024;
 function mediaPdfSignature(bytes){
   const head=bytes.subarray(0,1024);
   for(let i=0;i+4<head.length;i++)if(head[i]===37&&head[i+1]===80&&head[i+2]===68&&head[i+3]===70&&head[i+4]===45)return true;
   return false;
 }
-function mediaPdfRangeHeader(value){
-  const m=/^bytes (\d+)-(\d+)\/(\d+)$/i.exec(String(value||''));
-  if(!m)return null;
-  const [start,end,total]=m.slice(1).map(Number);
-  return [start,end,total].every(Number.isSafeInteger)&&start>=0&&end>=start&&total>end?{start,end,total}:null;
+function decodeMediaDocument(value,expected){
+  if(typeof value!=='string'||!Number.isSafeInteger(expected)||expected<1||value.length!==4*Math.ceil(expected/3))throw Error('طول داده سند معتبر نیست.');
+  const binary=atob(value);
+  if(binary.length!==expected)throw Error('داده سند ناقص است.');
+  const bytes=new Uint8Array(expected);
+  for(let i=0;i<expected;i++)bytes[i]=binary.charCodeAt(i);
+  return bytes;
+}
+async function requestMediaDocumentData(endpoint,body,signal){
+  const response=await apiFetch(endpoint,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body),signal});
+  const data=await response.json().catch(()=>null);
+  if(response.status!==200||!data)throw Error(data?.error||'پاسخ نامعتبر نمایشگر سند ('+response.status+'). پس از به‌روزرسانی سرور دوباره تلاش کنید.');
+  return data;
 }
 async function loadMediaPdfSource(lib,file,endpoint,signal,onFailure){
-  const expected=Number(file.stored_bytes)||0,large=expected>MEDIA_PDF_SMALL;
-  let ticket=null,ticketRequest=null;
-  async function ticketUrl(refresh=false){
-    if(refresh)ticket=null;
-    if(ticket)return ticket;
-    if(!ticketRequest)ticketRequest=requestMediaTicket({kind:'file',file_id:file.id,inline:true}).then(url=>{ticket=url;return url;}).finally(()=>{ticketRequest=null;});
-    return ticketRequest;
-  }
-  async function fetchBytes(range,useTicket=false){
+  let total=null,version=null;
+  async function read(offset,length){
     if(signal.aborted)throw new DOMException('Aborted','AbortError');
-    const headers=range?{Range:'bytes='+range.start+'-'+(range.end-1)}:{};
-    const url=useTicket?await ticketUrl():endpoint;
-    if(signal.aborted)throw new DOMException('Aborted','AbortError');
-    let response=await apiFetch(url,{method:'GET',cache:'no-store',headers,signal});
-    if(useTicket&&response.status===404){response=await apiFetch(await ticketUrl(true),{method:'GET',cache:'no-store',headers,signal});}
-    if(response.status!==200&&response.status!==206){await response.body?.cancel().catch(()=>{});throw Error('پاسخ نامعتبر سرور ('+response.status+').');}
-    const mime=String(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
-    if(mime!=='application/pdf'&&mime!=='application/octet-stream'){await response.body?.cancel().catch(()=>{});throw Error('پاسخ سرور فایل PDF نیست.');}
-    const part=mediaPdfRangeHeader(response.headers.get('content-range'));
-    const length=Number(response.headers.get('content-length'));
-    if(range&&response.status!==206){await response.body?.cancel().catch(()=>{});throw Error('ارسال بخشی PDF در سرور فعال نیست.');}
-    if(range&&(!part||part.start!==range.start||part.end!==Math.min(range.end,part.total)-1||(expected>0&&part.total!==expected))){
-      await response.body?.cancel().catch(()=>{});throw Error('بخش ارسالی سند معتبر نیست.');
-    }
-    if(!range&&(response.status!==200||length>MEDIA_PDF_SMALL)){await response.body?.cancel().catch(()=>{});throw Error('حجم یا پاسخ سند معتبر نیست.');}
-    const data=new Uint8Array(await response.arrayBuffer());
-    if(!data.length||(range&&data.length!==part.end-part.start+1)||(!range&&(data.length>MEDIA_PDF_SMALL||(expected>0&&data.length!==expected))))throw Error('فایل PDF کامل دریافت نشد.');
-    if((!range||range.start===0)&&!mediaPdfSignature(data))throw Error('محتوای فایل PDF معتبر نیست.');
-    return {data,part};
+    const body={offset,length};if(version!==null)body.version=version;
+    const value=await requestMediaDocumentData(endpoint,body,signal);
+    if(value.kind!=='pdf-chunk'||value.offset!==offset||!Number.isSafeInteger(value.total)||value.total<1||value.total>MEDIA_PDF_LIMIT||typeof value.version!=='string'||!/^[a-f0-9]{64}$/.test(value.version))throw Error('پاسخ داده PDF معتبر نیست.');
+    if(total!==null&&(total!==value.total||version!==value.version))throw Error('نسخه سند تغییر کرده است؛ دوباره آن را باز کنید.');
+    total=value.total;version=value.version;
+    if(offset>=total)throw Error('محدوده داده سند معتبر نیست.');
+    const bytes=decodeMediaDocument(value.data,Math.min(length,total-offset));
+    if(offset===0&&!mediaPdfSignature(bytes))throw Error('محتوای PDF معتبر نیست.');
+    return bytes;
   }
-  let useTicket=false;
-  async function fetchWithFallback(range){
-    const usingTicket=useTicket;
-    try{return await fetchBytes(range,usingTicket);}
-    catch(error){
-      if(signal.aborted||error.name==='AbortError'||usingTicket)throw error;
-      useTicket=true;return fetchBytes(range,true);
-    }
-  }
-  if(!large){
-    const result=await fetchWithFallback(null);
-    return {data:result.data};
-  }
-  const first=await fetchWithFallback({start:0,end:Math.min(expected,MEDIA_PDF_CHUNK)});
-  const range=new lib.PDFDataRangeTransport(first.part.total,first.data,true);
+  const first=await read(0,MEDIA_PDF_CHUNK);
+  if(first.length===total)return {data:first};
+  const range=new lib.PDFDataRangeTransport(total,first,true);
   let aborted=false;
   range.abort=()=>{aborted=true;};
-  range.requestDataRange=(begin,end)=>{
+  range.requestDataRange=async(begin,end)=>{
     if(aborted||signal.aborted)return;
-    fetchWithFallback({start:begin,end}).then(result=>{if(!aborted&&!signal.aborted)range.onDataRange(begin,result.data);})
-      .catch(error=>{if(!aborted&&!signal.aborted){aborted=true;onFailure(error);}});
+    try{
+      if(!Number.isSafeInteger(begin)||!Number.isSafeInteger(end)||begin<0||end>total||end<=begin)throw Error('محدوده درخواست PDF معتبر نیست.');
+      const bytes=new Uint8Array(end-begin);
+      for(let offset=begin;offset<end;){
+        if(aborted||signal.aborted)return;
+        const chunk=await read(offset,Math.min(MEDIA_PDF_CHUNK,end-offset));
+        bytes.set(chunk,offset-begin);offset+=chunk.length;
+      }
+      if(!aborted&&!signal.aborted)range.onDataRange(begin,bytes);
+    }catch(error){if(!aborted&&!signal.aborted){aborted=true;onFailure(error);}}
   };
   return {range,disableStream:true,disableAutoFetch:true,rangeChunkSize:MEDIA_PDF_CHUNK};
 }
 async function openMediaDocumentPreview(file,dialog,body,request){
   const ext=mediaDocumentExtension(file),plain=['txt','log','csv'].includes(ext);
-  const endpoint=API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id+'/document-preview';
+  const endpoint=API_URL+'/orders/'+invoiceMedia.orderId+'/media/'+file.id+'/document-data';
   const controller=new AbortController();
   let closed=false,task=null,pdf=null,renderTask=null,textLayer=null,revision=0,current=1,total=0,zoom=1,fit=!plain,lib=null,text=null,lastScale=1;
   const active=()=>!closed&&request===mediaPreviewRequest;
@@ -675,7 +663,7 @@ async function openMediaDocumentPreview(file,dialog,body,request){
   mediaPreviewCleanup=()=>{closed=true;++revision;controller.abort();clearTimeout(resizeTimer);observer?.disconnect();renderTask?.cancel();textLayer?.cancel();if(task)Promise.resolve(task.destroy()).catch(()=>{});};
   if(!dialog.open)dialog.showModal();sync();message('در حال آماده‌سازی سند…');
   try{
-    if(plain){const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});if(!response.ok)throw Error((await response.json().catch(()=>({}))).error||'نمایش سند ممکن نیست.');text=await response.text();if(active())render();return;}
+    if(plain){const result=await requestMediaDocumentData(endpoint,{},controller.signal);if(result.kind!=='text'||typeof result.text!=='string')throw Error('محتوای سند متنی معتبر نیست.');text=result.text;if(active())render();return;}
     lib=await loadMediaPdfLibrary();if(!active())return;
     const options={cMapUrl:'/pdfjs/cmaps/',cMapPacked:true,standardFontDataUrl:'/pdfjs/standard_fonts/',wasmUrl:'/pdfjs/wasm/',iccUrl:'/pdfjs/iccs/',isEvalSupported:false,enableXfa:false};
     if(ext==='pdf'){
@@ -687,9 +675,10 @@ async function openMediaDocumentPreview(file,dialog,body,request){
       if(!active())return;
       task=lib.getDocument({...options,...source});
     }else{
-      const response=await apiFetch(endpoint,{cache:'no-store',signal:controller.signal});
-      if(response.status!==200)throw Error((await response.json().catch(()=>({}))).error||'تبدیل پیش‌نمایش سند ممکن نیست.');
-      const data=new Uint8Array(await response.arrayBuffer());if(!active())return;
+      const result=await requestMediaDocumentData(endpoint,{},controller.signal);
+      if(!active())return;
+      if(result.kind!=='office'||!Number.isSafeInteger(result.total)||result.total<1||result.total>64*1024*1024)throw Error('خروجی پیش‌نمایش سند معتبر نیست.');
+      const data=decodeMediaDocument(result.data,result.total);
       if(!mediaPdfSignature(data))throw Error('خروجی پیش‌نمایش سند معتبر نیست.');
       task=lib.getDocument({...options,data});
     }
