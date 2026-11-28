@@ -149,12 +149,22 @@ function renderMediaUploadSerialOptions(previous = '') {
   select.value = invoiceMedia.serials.includes(previous) ? previous : '';
   select.disabled = invoiceMedia.uploading || invoiceMedia.deleting || !invoiceMedia.serials.length;
 }
-function selectMediaSerialGallery(serial) {
-  if (invoiceMedia.deleting) return;
+function selectMediaSerialGallery(serial, fromGallery = false) {
+  if (invoiceMedia.deleting || (fromGallery && invoiceMedia.uploading)) return;
   const next = serial || null;
   if (next && !invoiceMedia.serials.includes(next) && !invoiceMedia.files.some(file=>file.media_scope==='serial' && file.serial_number===next)) return;
   if (invoiceMedia.activeSerial !== next) invoiceMedia.selectedIds.clear();
   invoiceMedia.activeSerial = next;
+  // A user-selected gallery also sets the upload destination. Archived serials
+  // may still have files, but must not become valid destinations for new files.
+  if (fromGallery && invoiceMedia.canUpload) {
+    const select = mediaElement('invoiceMediaSerialSelect');
+    if (select) {
+      select.value = invoiceMedia.serials.includes(next) ? next : '';
+      // Reuse the existing queue safety checks; no synthetic change event or recursion.
+      setInvoiceMediaUploadScope('serial');
+    }
+  }
   setInvoiceMediaView('serial');
 }
 function setInvoiceMediaUploadScope(scope) {
@@ -518,8 +528,8 @@ function drawInvoiceMedia() {
       const badge=document.createElement('span');badge.className='invoice-media-serial-total';badge.dir='rtl';badge.textContent=count.toLocaleString('fa-IR')+' فایل';
       button.append(name,badge);
       button.addEventListener('click',()=>{
-        if(invoiceMedia.deleting||invoiceMedia.activeSerial===serial)return;
-        selectMediaSerialGallery(serial);
+        if(invoiceMedia.deleting||invoiceMedia.uploading)return;
+        selectMediaSerialGallery(serial,true);
       });selector.append(button);
     });
     groups.append(selector);
