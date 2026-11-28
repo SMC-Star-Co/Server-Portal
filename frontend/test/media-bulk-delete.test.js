@@ -5,9 +5,9 @@ const path=require('node:path');
 const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../assets/js/invoice-media.js'),'utf8');
 function setup({permission=true,answer=true,responses=[]}={}){
-  const calls=[],messages=[],confirmations=[];
+  const calls=[],messages=[],confirmations=[],tickets=[],links=[];
   const context=vm.createContext({
-    document:{getElementById:()=>null}, API_URL:'/api',
+    document:{getElementById:()=>null}, API_URL:'/api', tickets,links,
     confirm:message=>{confirmations.push(message);return answer;},
     showAppToast:message=>messages.push(message),
     apiFetch:async(url,opts)=>{
@@ -27,10 +27,12 @@ function setup({permission=true,answer=true,responses=[]}={}){
       {id:4,media_scope:'invoice'}
     ];
     refreshInvoiceMedia=async()=>true;drawInvoiceMedia=()=>{};renderPendingMediaFiles=()=>{};
-    globalThis.mediaTest={invoiceMedia,mediaGroupFiles,mediaSelectedFiles,updateMediaGroupSelection,
+    requestMediaTicket=async payload=>{tickets.push(payload);return '/api/media-transfer/test';};
+    followMediaLink=(url,download)=>links.push({url,download});
+    globalThis.mediaTest={invoiceMedia,mediaGroupFiles,mediaSelectedFiles,updateMediaGroupSelection,downloadSelectedInvoiceMedia,
       deleteSelectedInvoiceMedia,deleteInvoiceMedia,pruneMediaSelection,setInvoiceMediaView};
   `,context);
-  return {...context.mediaTest,calls,messages,confirmations};
+  return {...context.mediaTest,calls,messages,confirmations,tickets,links};
 }
 const ids=files=>Array.from(files,f=>f.id);
 test('selection is restricted to the active serial and selecting all excludes other groups',()=>{
@@ -62,7 +64,7 @@ test('invoice group cannot select serial files; cancellation issues no DELETE',a
   assert.equal(t.calls.length,0);
   assert.equal(t.confirmations.length,1);
 });
-test('read-only users cannot select or delete; permission denial stops remaining requests',async()=>{
+test('read-only users can select but cannot delete; permission denial stops remaining requests',async()=>{
   const t=setup({permission:false});
   t.updateMediaGroupSelection('serial','A',t.invoiceMedia.files,true);
   await t.deleteSelectedInvoiceMedia('serial','A');await t.deleteInvoiceMedia(t.invoiceMedia.files[0]);
@@ -80,4 +82,22 @@ test('partial success preserves failed selected files for retry',async()=>{
   assert.deepEqual(ids(t.invoiceMedia.files),[2,3,4]);
   assert.deepEqual(ids(t.mediaSelectedFiles('serial','A')),[2]);
   assert.equal(t.invoiceMedia.deleting,false);
+});
+
+test('selected download sends only the checked IDs within the active group for a single ZIP',async()=>{
+  const t=setup({permission:false});
+  await t.downloadSelectedInvoiceMedia('serial','A');assert.equal(t.tickets.length,0);
+  t.updateMediaGroupSelection('serial','A',[{id:2},{id:3},{id:4}],true);
+  await t.downloadSelectedInvoiceMedia('serial','B');assert.equal(t.tickets.length,0);
+  await t.downloadSelectedInvoiceMedia('serial','A');
+  assert.deepEqual(t.tickets,[{kind:'zip',scope:'serial',serial_number:'A',file_ids:['2']}]);
+  assert.deepEqual(t.links,[{url:'/api/media-transfer/test',download:true}]);
+  assert.deepEqual(ids(t.mediaSelectedFiles('serial','A')),[2]);
+});
+test('invoice selected download excludes all serial files',async()=>{
+  const t=setup();t.invoiceMedia.view='invoice';
+  t.updateMediaGroupSelection('invoice',null,t.invoiceMedia.files,true);
+  await t.downloadSelectedInvoiceMedia('invoice',null);
+  assert.deepEqual(t.tickets[0].file_ids,['4']);
+  assert.equal(t.tickets[0].scope,'invoice');
 });

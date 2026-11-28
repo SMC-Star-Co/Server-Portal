@@ -310,7 +310,6 @@ async function refreshInvoiceMedia(silent = false, afterDelete = false) {
     invoiceMedia.canUpload = Boolean(data.can_upload);
     invoiceMedia.canEdit = Boolean(data.can_edit);
     invoiceMedia.canDelete = Boolean(data.can_delete);
-    if (!invoiceMedia.canDelete) invoiceMedia.selectedIds.clear();
     mediaElement('invoiceMediaModalTitle').textContent = 'فایل‌های فاکتور ' + invoiceMedia.invoice;
     mediaElement('invoiceMediaUploader').hidden = !invoiceMedia.canUpload;
     mediaElement('invoiceMediaPermissionHint').hidden = invoiceMedia.canUpload || invoiceMedia.canEdit || invoiceMedia.canDelete;
@@ -364,14 +363,14 @@ function isCurrentMediaGroup(scope,serial) {
 }
 function pruneMediaSelection() {
   const ids=new Set(mediaGroupFiles(invoiceMedia.view,invoiceMedia.activeSerial).map(file=>String(file.id)));
-  for(const id of invoiceMedia.selectedIds)if(!invoiceMedia.canDelete||!ids.has(id))invoiceMedia.selectedIds.delete(id);
+  for(const id of invoiceMedia.selectedIds)if(!ids.has(id))invoiceMedia.selectedIds.delete(id);
 }
 function mediaSelectedFiles(scope,serial) {
-  if(!invoiceMedia.canDelete||!isCurrentMediaGroup(scope,serial))return [];
+  if(!isCurrentMediaGroup(scope,serial))return [];
   return mediaGroupFiles(scope,serial).filter(file=>invoiceMedia.selectedIds.has(String(file.id)));
 }
 function updateMediaGroupSelection(scope,serial,files,checked) {
-  if(!invoiceMedia.canDelete||invoiceMedia.deleting||!isCurrentMediaGroup(scope,serial))return;
+  if(invoiceMedia.deleting||!isCurrentMediaGroup(scope,serial))return;
   const allowed=new Set(mediaGroupFiles(scope,serial).map(file=>String(file.id)));
   for(const file of files){
     const id=String(file.id);
@@ -381,7 +380,7 @@ function updateMediaGroupSelection(scope,serial,files,checked) {
 }
 function drawMediaSelectionControls(root,files,scope,serial) {
   root.replaceChildren();
-  root.hidden=!invoiceMedia.canDelete||!files.length;
+  root.hidden=!files.length;
   if(root.hidden)return null;
   const controls=document.createElement('div');controls.className='invoice-media-bulk-controls';
   const label=document.createElement('label');label.className='invoice-media-select-all';
@@ -389,7 +388,15 @@ function drawMediaSelectionControls(root,files,scope,serial) {
   const caption=document.createElement('span');caption.textContent='انتخاب همه';
   label.append(all,caption);
   const count=document.createElement('span');count.className='invoice-media-selected-count';count.setAttribute('aria-live','polite');
-  const remove=mediaButton('حذف انتخاب شده‌‎ها','invoice-media-bulk-delete',()=>deleteSelectedInvoiceMedia(scope,serial));
+  const remove=invoiceMedia.canDelete?mediaButton('حذف انتخاب شده‌‎ها','invoice-media-bulk-delete',()=>deleteSelectedInvoiceMedia(scope,serial)):null;
+  let requestingDownload=false;
+  const download=mediaButton('دانلود انتخاب شده‌‎ها','invoice-media-bulk-download',async()=>{
+    if(requestingDownload)return;
+    requestingDownload=true;sync();
+    try{await downloadSelectedInvoiceMedia(scope,serial);}
+    finally{requestingDownload=false;sync();}
+  });
+  download.title='دانلود فایل‌های انتخاب شده در یک فایل ZIP';
   const entries=[];
   function sync(){
     const selected=new Set(mediaSelectedFiles(scope,serial).map(file=>String(file.id)));
@@ -398,8 +405,12 @@ function drawMediaSelectionControls(root,files,scope,serial) {
     all.checked=total>0&&total===files.length;
     all.indeterminate=total>0&&total<files.length;
     all.disabled=inactive;
-    remove.disabled=inactive||!total;
-    remove.textContent=invoiceMedia.deleting?'در حال حذف...':'حذف انتخاب شده‌‎ها';
+    download.disabled=inactive||!total||requestingDownload;
+    download.textContent=requestingDownload?'در حال آماده‌سازی...':'دانلود انتخاب شده‌‎ها';
+    if(remove){
+      remove.disabled=inactive||!total;
+      remove.textContent=invoiceMedia.deleting?'در حال حذف...':'حذف انتخاب شده‌‎ها';
+    }
     count.textContent=total.toLocaleString('fa-IR')+' از '+files.length.toLocaleString('fa-IR');
     count.title=count.textContent+' فایل انتخاب شده';
     count.setAttribute('aria-label',count.title);
@@ -409,7 +420,7 @@ function drawMediaSelectionControls(root,files,scope,serial) {
     }
   }
   all.addEventListener('change',()=>{updateMediaGroupSelection(scope,serial,files,all.checked);sync();});
-  controls.append(label,count,remove);root.append(controls);sync();
+  controls.append(label,count,download);if(remove)controls.append(remove);root.append(controls);sync();
   return {
     attach(file,card,actions){
       const holder=document.createElement('label');holder.className='invoice-media-file-select';holder.title='انتخاب '+mediaServerName(file);
@@ -602,6 +613,18 @@ async function downloadInvoiceMedia(file) {
 async function downloadInvoiceMediaGroup(scope,serial) {
   try{followMediaLink(await requestMediaTicket({kind:'zip',scope,serial_number:scope==='serial'?serial:undefined}),true)}
   catch(error){showAppToast(error.message||'خطا در دانلود گروهی')}
+}
+async function downloadSelectedInvoiceMedia(scope,serial) {
+  if(!invoiceMedia.orderId||invoiceMedia.deleting||!isCurrentMediaGroup(scope,serial))return;
+  const files=mediaSelectedFiles(scope,serial);
+  if(!files.length)return;
+  if(files.length>1000)return showAppToast('حداکثر ۱۰۰۰ فایل را در هر دانلود انتخابی انتخاب کنید.');
+  const orderId=invoiceMedia.orderId;
+  try{
+    const url=await requestMediaTicket({kind:'zip',scope,serial_number:scope==='serial'?serial:undefined,
+      file_ids:files.map(file=>String(file.id))});
+    if(invoiceMedia.orderId===orderId)followMediaLink(url,true);
+  }catch(error){showAppToast(error.message||'خطا در دانلود فایل‌های انتخاب شده');}
 }
 // Click to zoom at the pointer; drag a zoomed image without toggling zoom.
 function bindMediaImageZoom(stage,img) {
@@ -1168,7 +1191,7 @@ function setMediaDeleteBusy(busy) {
     el.disabled=busy;
   }
   if(busy){
-    for(const el of modal.querySelectorAll('.invoice-media-bulk-controls input, .invoice-media-bulk-delete, .invoice-media-file-select input, .invoice-media-file-actions button, .invoice-media-serial-chip, #invoiceMediaUploadButton, #invoiceMediaSerialSelect'))el.disabled=true;
+    for(const el of modal.querySelectorAll('.invoice-media-bulk-controls input, .invoice-media-bulk-delete, .invoice-media-bulk-download, .invoice-media-file-select input, .invoice-media-file-actions button, .invoice-media-serial-chip, #invoiceMediaUploadButton, #invoiceMediaSerialSelect'))el.disabled=true;
     for(const el of modal.querySelectorAll('.invoice-media-bulk-delete'))el.textContent='در حال حذف...';
   }
 }

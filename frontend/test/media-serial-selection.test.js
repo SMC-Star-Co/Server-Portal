@@ -117,10 +117,23 @@ test('compact serial bulk controls sit immediately to the left of download in RT
   assert.equal(actions.children[0].textContent.startsWith('دانلود همه'),true);
   const bulk=actions.children[1].children[0];
   assert.equal(bulk.className,'invoice-media-bulk-controls');
-  assert.equal(bulk.children[2].textContent,'حذف انتخاب شده‌‎ها');
+  assert.equal(bulk.children[2].textContent,'دانلود انتخاب شده‌‎ها');
+  assert.equal(bulk.children[3].textContent,'حذف انتخاب شده‌‎ها');
+  assert.equal(bulk.children[2].disabled,true);
   const all=bulk.children[0].children[0];
   all.checked=true;all.fire('change');
   assert.equal(bulk.children[2].disabled,false);
+  assert.equal(bulk.children[3].disabled,false);
   assert.equal(t.invoiceMedia.selectedIds.size,1);
   assert.equal(bulk.children[1].textContent,'۱ از ۱');
+});
+
+test('read-only gallery offers selected download but no delete control',()=>{
+  const t=setup({realSelection:true});t.invoiceMedia.canDelete=false;t.drawInvoiceMedia();
+  t.element('invoiceMediaSerialGroups').children[0].children[1].fire('click');
+  const bulk=t.element('invoiceMediaSerialGroups').children[1].children[0].children[0].children[1].children[0];
+  assert.equal(bulk.children.length,3);
+  assert.equal(bulk.children[2].textContent,'دانلود انتخاب شده‌‎ها');
+  const all=bulk.children[0].children[0];all.checked=true;all.fire('change');
+  assert.equal(bulk.children[2].disabled,false);
 });

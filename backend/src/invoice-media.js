@@ -44,6 +44,18 @@ function validId(value) {
   const n = Number(value);
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
+const MAX_SELECTED_DOWNLOAD_FILES=1000;
+function selectedZipIds(value) {
+  if(!Array.isArray(value)||!value.length||value.length>MAX_SELECTED_DOWNLOAD_FILES)return null;
+  const ids=[];
+  for(const item of value){
+    if(typeof item!=='number'&&!(typeof item==='string'&&/^[1-9][0-9]*$/.test(item)))return null;
+    const id=validId(item);
+    if(!id)return null;
+    ids.push(id);
+  }
+  return [...new Set(ids)];
+}
 function parseSerials(value) {
   return String(value || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
 }
@@ -518,9 +530,19 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,broadcastRealtimeE
     }else if(body.kind==='zip'&&(body.scope==='invoice'||body.scope==='serial')){
       const scope=body.scope,serial=scope==='serial'?canonicalSerial(body.serial_number):null;
       if(scope==='serial'&&!serial)return fail(reply,400,'سریال انتخاب‌شده معتبر نیست.');
-      const found=await pool.query('SELECT 1 FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 LIMIT 1',[id,scope,serial||'']);
-      if(!found.rowCount)return fail(reply,404,'فایلی برای دانلود وجود ندارد.');
-      payload={kind:'zip',orderId:id,scope,serial};
+      const hasSelection=Object.prototype.hasOwnProperty.call(body,'file_ids');
+      const fileIds=hasSelection?selectedZipIds(body.file_ids):null;
+      if(hasSelection&&!fileIds)return fail(reply,400,'فهرست فایل‌های انتخاب شده معتبر نیست (حداکثر ۱۰۰۰ فایل).');
+      const groupWhere="order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,'')=$3";
+      const args=[id,scope,serial||''];
+      if(hasSelection){
+        const found=await pool.query('SELECT id FROM invoice_media WHERE '+groupWhere+' AND id=ANY($4::bigint[])',[...args,fileIds]);
+        if(found.rowCount!==fileIds.length)return fail(reply,404,'برخی فایل‌های انتخاب شده در این گروه موجود نیستند.');
+      }else{
+        const found=await pool.query('SELECT 1 FROM invoice_media WHERE '+groupWhere+' LIMIT 1',args);
+        if(!found.rowCount)return fail(reply,404,'فایلی برای دانلود وجود ندارد.');
+      }
+      payload={kind:'zip',orderId:id,scope,serial,...(hasSelection?{fileIds}:{})};
     }else return fail(reply,400,'نوع درخواست نامعتبر است.');
     const ticket=issueTicket(payload);
     return {url:'/api/media-transfer/'+ticket,expires_in:120};
@@ -571,8 +593,13 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,broadcastRealtimeE
         .header('Content-Disposition',showInline?'inline':safeDisposition(file.download_name||file.original_name))
         .send(fs.createReadStream(filepath));
     }
-    const files=await pool.query('SELECT stored_name,COALESCE(download_name,original_name) AS name FROM invoice_media WHERE order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,\'\')=$3 ORDER BY sequence_number,id',[id,ticket.scope,ticket.serial||'']);
-    if(!files.rowCount)return fail(reply,404,'فایلی برای دانلود وجود ندارد.');
+    const selected=Array.isArray(ticket.fileIds);
+    const groupWhere="order_id=$1 AND media_scope=$2 AND COALESCE(serial_number,'')=$3";
+    const args=[id,ticket.scope,ticket.serial||''];
+    if(selected)args.push(ticket.fileIds);
+    const files=await pool.query('SELECT stored_name,COALESCE(download_name,original_name) AS name FROM invoice_media WHERE '+groupWhere+
+      (selected?' AND id=ANY($4::bigint[])':'')+' ORDER BY sequence_number,id',args);
+    if(!files.rowCount||(selected&&files.rowCount!==ticket.fileIds.length))return fail(reply,404,'فایل‌های انتخاب شده دیگر در این گروه موجود نیستند.');
     const temp=await fsp.mkdtemp(path.join(os.tmpdir(),'portal-zip-'));
     try{
       const names=[];
@@ -583,8 +610,8 @@ function registerInvoiceMedia(fastify,{pool,requirePermission,broadcastRealtimeE
         names.push(name);
       }
       const order=await pool.query('SELECT invoice_number FROM orders WHERE id=$1',[id]);
-      const archive=sanitizeName(String(order.rows[0]?.invoice_number||'invoice')+(ticket.scope==='serial'?'-'+ticket.serial:'')+'.zip');
-      const proc=spawn('zip',['-0','-q','-j','-',...names],{cwd:temp,stdio:['ignore','pipe','pipe'],shell:false});
+      const archive=sanitizeName(String(order.rows[0]?.invoice_number||'invoice')+(ticket.scope==='serial'?'-'+ticket.serial:'')+(selected?'-selected':'')+'.zip');
+      const proc=spawn('zip',['-0','-q','-j','-',...names.map(name=>'./'+name)],{cwd:temp,stdio:['ignore','pipe','pipe'],shell:false});
       proc.stderr.on('data',e=>request.log.error('Zip: '+e.toString().slice(0,250)));
       proc.on('close',()=>fsp.rm(temp,{recursive:true,force:true}).catch(()=>{}));
       proc.on('error',err=>{request.log.error(err);fsp.rm(temp,{recursive:true,force:true}).catch(()=>{});});

@@ -257,3 +257,45 @@ test('media mutation routes do not reference the activity logger or insert activ
   const appSource=fs.readFileSync(require.resolve('../src/app'),'utf8');
   assert.doesNotMatch(appSource,/'order\.media_(?:uploaded|edited|deleted)'/);
 });
+
+// The same order/scope constraint is applied both when issuing and redeeming a selected ZIP.
+test('selected ZIP validates exact IDs and never falls back to the whole group',async()=>{
+  const handlers=new Map(),queries=[];
+  const app={addContentTypeParser(){}};
+  for(const method of ['get','post','put','patch','delete'])app[method]=(route,opts,callback)=>handlers.set(method.toUpperCase()+' '+route,callback||opts);
+  const rows=[{id:5,order:2,scope:'serial',serial:'SER1'},{id:6,order:2,scope:'serial',serial:'SER1'},{id:7,order:2,scope:'serial',serial:'SER2'},{id:8,order:2,scope:'invoice',serial:''},{id:9,order:3,scope:'serial',serial:'SER1'}];
+  let removed=false;
+  const pool={query:async(sql,args)=>{
+    queries.push({sql,args});
+    if(sql.includes('SELECT serials FROM orders'))return {rowCount:1,rows:[{serials:'SER1,SER2'}]};
+    const matches=rows.filter(r=>r.order===args[0]&&r.scope===args[1]&&r.serial===args[2]&&(!args[3]||args[3].includes(r.id))&&!(removed&&r.id===5));
+    return {rowCount:matches.length,rows:matches};
+  }};
+  require('../src/invoice-media').registerInvoiceMedia(app,{pool,requirePermission:()=>false,broadcastRealtimeEvent:()=>{}});
+  const issue=handlers.get('POST /api/orders/:id/media/ticket');
+  const transfer=handlers.get('GET /api/media-transfer/:ticket');
+  const req={params:{id:'2'},user:{permissions:{}},body:{kind:'zip',scope:'serial',serial_number:'SER1'}};
+  for(const file_ids of [[],null,'5',[true],[0],[1.5],['5x'],Array(1001).fill(5)]){
+    const reply=mockReply();await issue({...req,body:{...req.body,file_ids}},reply);
+    assert.equal(reply.statusCode,400);
+  }
+  for(const file_ids of [[5,7],[5,8],[5,9],[999]]){
+    const reply=mockReply();await issue({...req,body:{...req.body,file_ids}},reply);
+    assert.equal(reply.statusCode,404);
+  }
+  const success=await issue({...req,body:{...req.body,file_ids:['5',5]}},mockReply());
+  assert.match(success.url,/^\/api\/media-transfer\//);
+  assert.deepEqual(queries.at(-1).args,[2,'serial','SER1',[5]]);
+  assert.match(queries.at(-1).sql,/id=ANY\(\$4::bigint\[\]\)/);
+  removed=true;
+  const expiredSelection=mockReply();await transfer({params:{ticket:success.url.split('/').pop()}},expiredSelection);
+  assert.equal(expiredSelection.statusCode,404);
+  assert.deepEqual(queries.at(-1).args,[2,'serial','SER1',[5]]);
+  assert.match(queries.at(-1).sql,/id=ANY\(\$4::bigint\[\]\)/);
+  const all=await issue(req,mockReply());
+  assert.match(all.url,/^\/api\/media-transfer\//);
+  assert.equal(queries.at(-1).args.length,3);
+  const invoice=await issue({...req,body:{kind:'zip',scope:'invoice',file_ids:[8]}},mockReply());
+  assert.match(invoice.url,/^\/api\/media-transfer\//);
+  assert.deepEqual(queries.at(-1).args,[2,'invoice','',[8]]);
+});
