@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "Setare Soheil Parsa – Server Portal",
+  "short_name": "Server Portal",
+  "description": "پرتال مدیریت فاکتورها و تجهیزات سرور شرکت ستاره سهیل پارسا",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#f8fafc",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/assets/icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
