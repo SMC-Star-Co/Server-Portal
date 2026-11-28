@@ -389,7 +389,7 @@ function drawMediaSelectionControls(root,files,scope,serial) {
   const caption=document.createElement('span');caption.textContent='انتخاب همه';
   label.append(all,caption);
   const count=document.createElement('span');count.className='invoice-media-selected-count';count.setAttribute('aria-live','polite');
-  const remove=mediaButton('حذف انتخاب‌شده‌ها','invoice-media-bulk-delete',()=>deleteSelectedInvoiceMedia(scope,serial));
+  const remove=mediaButton('حذف انتخاب شده‌‎ها','invoice-media-bulk-delete',()=>deleteSelectedInvoiceMedia(scope,serial));
   const entries=[];
   function sync(){
     const selected=new Set(mediaSelectedFiles(scope,serial).map(file=>String(file.id)));
@@ -399,8 +399,10 @@ function drawMediaSelectionControls(root,files,scope,serial) {
     all.indeterminate=total>0&&total<files.length;
     all.disabled=inactive;
     remove.disabled=inactive||!total;
-    remove.textContent=invoiceMedia.deleting?'در حال حذف...':'حذف انتخاب‌شده‌ها';
-    count.textContent=total.toLocaleString('fa-IR')+' از '+files.length.toLocaleString('fa-IR')+' فایل انتخاب شده';
+    remove.textContent=invoiceMedia.deleting?'در حال حذف...':'حذف انتخاب شده‌‎ها';
+    count.textContent=total.toLocaleString('fa-IR')+' از '+files.length.toLocaleString('fa-IR');
+    count.title=count.textContent+' فایل انتخاب شده';
+    count.setAttribute('aria-label',count.title);
     for(const {file,card,input} of entries){
       input.checked=selected.has(String(file.id));input.disabled=inactive;
       card.classList.toggle('is-media-selected',input.checked);
@@ -543,16 +545,18 @@ function drawInvoiceMedia() {
       const label=document.createElement('span');label.textContent='پرونده سرور';
       const current=document.createElement('strong');current.textContent=mediaSerialLabel(selected);
       description.append(label,current);
-      if(selectedAll.length){
-        const download=mediaButton(mediaGroupDownloadLabel(selectedAll),'secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected));
-        download.title='مجموع حجم فایل‌های اصلی این سرور، پیش از بسته‌بندی ZIP';
-        top.append(download);
-      }
-      top.append(description);
       const controls=document.createElement('div');
       const selection=drawMediaSelectionControls(controls,selectedFiles,'serial',selected);
+      if(selectedAll.length){
+        const groupActions=document.createElement('div');groupActions.className='invoice-media-group-actions';
+        const download=mediaButton(mediaGroupDownloadLabel(selectedAll),'secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected));
+        download.title='مجموع حجم فایل‌های اصلی این سرور، پیش از بسته‌بندی ZIP';
+        groupActions.append(download,controls);
+        top.append(groupActions);
+      }
+      top.append(description);
       const gallery=document.createElement('div');gallery.className='invoice-media-list';drawMediaRows(gallery,selectedFiles,selection);
-      panel.append(top,controls,gallery);groups.append(panel);
+      panel.append(top,gallery);groups.append(panel);
     }
   }
   if(!invoiceMedia.thumbnailObserver){

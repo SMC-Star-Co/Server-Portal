@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../assets/js/invoice-media.js'),'utf8');
-function setup(){
+function setup({realSelection=false}={}){
   const nodes=new Map(),messages=[];
   function element(tag='div'){
     const classes=new Set(),listeners={};
@@ -22,7 +22,7 @@ function setup(){
   vm.runInContext(source+`
     invoiceMedia.serials=['A','B'];invoiceMedia.canUpload=true;invoiceMedia.canDelete=true;
     invoiceMedia.files=[{id:1,media_scope:'serial',serial_number:'B'}];
-    drawMediaRows=()=>{};drawMediaSelectionControls=()=>null;updateInvoiceMediaSelection=()=>{};
+    drawMediaRows=()=>{};if(!${realSelection})drawMediaSelectionControls=()=>null;updateInvoiceMediaSelection=()=>{};
     globalThis.mediaTest={invoiceMedia,drawInvoiceMedia,renderMediaUploadSerialOptions,updateInvoiceMediaTarget,setInvoiceMediaView,selectMediaSerialGallery};
   `,context);
   return {...context.mediaTest,messages,element:id=>document.getElementById(id)};
@@ -105,4 +105,22 @@ test('read-only users can still open any gallery',()=>{
   const t=setup();t.invoiceMedia.canUpload=false;t.drawInvoiceMedia();
   t.element('invoiceMediaSerialGroups').children[0].children[1].fire('click');
   assert.equal(t.invoiceMedia.activeSerial,'B');
+});
+
+test('compact serial bulk controls sit immediately to the left of download in RTL header',()=>{
+  const t=setup({realSelection:true});t.drawInvoiceMedia();
+  t.element('invoiceMediaSerialGroups').children[0].children[1].fire('click');
+  const panel=t.element('invoiceMediaSerialGroups').children[1];
+  assert.equal(panel.children.length,2);
+  const actions=panel.children[0].children[0];
+  assert.equal(actions.className,'invoice-media-group-actions');
+  assert.equal(actions.children[0].textContent.startsWith('دانلود همه'),true);
+  const bulk=actions.children[1].children[0];
+  assert.equal(bulk.className,'invoice-media-bulk-controls');
+  assert.equal(bulk.children[2].textContent,'حذف انتخاب شده‌‎ها');
+  const all=bulk.children[0].children[0];
+  all.checked=true;all.fire('change');
+  assert.equal(bulk.children[2].disabled,false);
+  assert.equal(t.invoiceMedia.selectedIds.size,1);
+  assert.equal(bulk.children[1].textContent,'۱ از ۱');
 });
