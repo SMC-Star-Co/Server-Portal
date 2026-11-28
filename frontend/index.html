@@ -877,7 +877,7 @@
                     <div id="invoiceMediaInvoicePanel" hidden></div>
                     <div id="invoiceMediaSerialPanel">
                         <label class="invoice-media-label" for="invoiceMediaSerialSelect">سریال سرور</label>
-                        <select id="invoiceMediaSerialSelect" onchange="updateInvoiceMediaTarget()"></select>
+                        <select id="invoiceMediaSerialSelect" onchange="updateInvoiceMediaTarget(true)"><option value="">انتخاب سریال سرور...</option></select>
                     </div>
                     <div id="invoiceMediaDropzone" class="invoice-media-dropzone" role="button" tabindex="0" onclick="chooseInvoiceMediaFiles()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();chooseInvoiceMediaFiles()}">
                         <div class="invoice-media-drop-icon"><span data-portal-icon="cloud-upload"></span></div>

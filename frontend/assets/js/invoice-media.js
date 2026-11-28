@@ -60,6 +60,7 @@ function releaseMediaThumbnails() {
 function clearInvoiceMedia() {
   closeInvoiceMediaModal(true);
   invoiceMedia.orderId = null;
+  invoiceMedia.activeSerial = null;
   invoiceMedia.selectedIds.clear();
   invoiceMedia.invoice = '';
   invoiceMedia.serials = [];
@@ -82,6 +83,7 @@ function openInvoiceMediaFromOps() {
   invoiceMedia.activeSerial = null;
   invoiceMedia.pending = {serial:[],invoice:[]};
   invoiceMedia.pendingSerial = null;
+  renderMediaUploadSerialOptions('');
   for (const id of ['invoiceMediaSerialFiles','invoiceMediaInvoiceFiles']) {
     const input=mediaElement(id);
     if(input) input.value='';
@@ -107,6 +109,7 @@ function closeInvoiceMediaModal(force = false) {
   }
   const modal = mediaElement('invoiceMediaModal');
   if (modal) modal.style.display = 'none';
+  invoiceMedia.activeSerial = null;
   invoiceMedia.selectedIds.clear();
   invoiceMedia.pending = {serial:[],invoice:[]};
   invoiceMedia.pendingSerial = null;
@@ -117,8 +120,12 @@ function closeInvoiceMediaModal(force = false) {
   if (preview?.open) preview.close();
   closeInvoiceMediaPreview();
 }
-function updateInvoiceMediaTarget() {
+function updateInvoiceMediaTarget(fromUser = false) {
   const select = mediaElement('invoiceMediaSerialSelect');
+  if (fromUser && (invoiceMedia.uploading || invoiceMedia.deleting)) {
+    if (select) select.value = invoiceMedia.pendingSerial || '';
+    return;
+  }
   const serial = select?.value || '';
   if(invoiceMedia.pending.serial.length && invoiceMedia.pendingSerial !== serial) {
     invoiceMedia.pending.serial = [];
@@ -126,6 +133,29 @@ function updateInvoiceMediaTarget() {
   }
   invoiceMedia.pendingSerial = serial;
   updateInvoiceMediaSelection();
+  if (fromUser && invoiceMedia.uploadScope === 'serial') selectMediaSerialGallery(serial);
+}
+function renderMediaUploadSerialOptions(previous = '') {
+  const select = mediaElement('invoiceMediaSerialSelect');
+  if (!select) return;
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = invoiceMedia.serials.length ? 'انتخاب سریال سرور...' : 'سریالی ثبت نشده است';
+  select.replaceChildren(placeholder);
+  for (const serial of invoiceMedia.serials) {
+    const option = document.createElement('option');
+    option.value = serial; option.textContent = mediaSerialLabel(serial); select.append(option);
+  }
+  select.value = invoiceMedia.serials.includes(previous) ? previous : '';
+  select.disabled = invoiceMedia.uploading || invoiceMedia.deleting || !invoiceMedia.serials.length;
+}
+function selectMediaSerialGallery(serial) {
+  if (invoiceMedia.deleting) return;
+  const next = serial || null;
+  if (next && !invoiceMedia.serials.includes(next) && !invoiceMedia.files.some(file=>file.media_scope==='serial' && file.serial_number===next)) return;
+  if (invoiceMedia.activeSerial !== next) invoiceMedia.selectedIds.clear();
+  invoiceMedia.activeSerial = next;
+  setInvoiceMediaView('serial');
 }
 function setInvoiceMediaUploadScope(scope) {
   if(invoiceMedia.uploading) return;
@@ -227,7 +257,7 @@ function renderPendingMediaFiles() {
   button.disabled=invoiceMedia.uploading||!queue.length||invalid||!invoiceMedia.canUpload||!hasSerial;
   for(const id of ['invoiceMediaScopeInvoice','invoiceMediaScopeSerial','invoiceMediaSerialSelect']){
     const element=mediaElement(id);
-    if(element)element.disabled=invoiceMedia.uploading || (id==='invoiceMediaSerialSelect'&&!invoiceMedia.serials.length);
+    if(element)element.disabled=invoiceMedia.uploading || invoiceMedia.deleting || (id==='invoiceMediaSerialSelect'&&!invoiceMedia.serials.length);
   }
 }
 
@@ -274,19 +304,7 @@ async function refreshInvoiceMedia(silent = false, afterDelete = false) {
     mediaElement('invoiceMediaModalTitle').textContent = 'فایل‌های فاکتور ' + invoiceMedia.invoice;
     mediaElement('invoiceMediaUploader').hidden = !invoiceMedia.canUpload;
     mediaElement('invoiceMediaPermissionHint').hidden = invoiceMedia.canUpload || invoiceMedia.canEdit || invoiceMedia.canDelete;
-    const select = mediaElement('invoiceMediaSerialSelect');
-    const old = select.value;
-    select.replaceChildren();
-    for (const serial of invoiceMedia.serials) {
-      const option = document.createElement('option');
-      option.value = serial; option.textContent = mediaSerialLabel(serial); select.append(option);
-    }
-    if (invoiceMedia.serials.includes(old)) select.value = old;
-    if (!invoiceMedia.serials.length) {
-      const option = document.createElement('option');
-      option.textContent = 'سریالی ثبت نشده است'; option.value = ''; select.append(option);
-    }
-    select.disabled = !invoiceMedia.serials.length;
+    renderMediaUploadSerialOptions(mediaElement('invoiceMediaSerialSelect').value);
     const count = invoiceMedia.files.filter(f => f.media_scope === 'serial').length;
     mediaElement('invoiceMediaInvoiceCount').textContent = invoiceMedia.files.length - count;
     mediaElement('invoiceMediaSerialCount').textContent = count;
@@ -328,11 +346,11 @@ function mediaPreviewable(file) {
 // File selection belongs only to the visible invoice group or the current serial.
 function mediaGroupFiles(scope,serial) {
   return invoiceMedia.files.filter(file=>scope==='serial'
-    ? file.media_scope==='serial' && file.serial_number===serial
+    ? Boolean(serial) && file.media_scope==='serial' && file.serial_number===serial
     : file.media_scope!=='serial');
 }
 function isCurrentMediaGroup(scope,serial) {
-  return invoiceMedia.view===scope && (scope==='invoice'||invoiceMedia.activeSerial===serial);
+  return invoiceMedia.view===scope && (scope==='invoice'||Boolean(serial)&&invoiceMedia.activeSerial===serial);
 }
 function pruneMediaSelection() {
   const ids=new Set(mediaGroupFiles(invoiceMedia.view,invoiceMedia.activeSerial).map(file=>String(file.id)));
@@ -466,6 +484,11 @@ function drawInvoiceMedia() {
   }
   const files=invoiceMedia.files;
   const invoiceAll=files.filter(file=>file.media_scope!=='serial');
+  if (invoiceMedia.activeSerial && !invoiceMedia.serials.includes(invoiceMedia.activeSerial) &&
+      !files.some(file=>file.media_scope==='serial' && file.serial_number===invoiceMedia.activeSerial)) {
+    if(invoiceMedia.view==='serial')invoiceMedia.selectedIds.clear();
+    invoiceMedia.activeSerial=null;
+  }
   pruneMediaSelection();
   const invoiceFiltered=mediaFilteredFiles(invoiceAll);
   const invoiceSelection=drawMediaSelectionControls(mediaElement('invoiceMediaInvoiceSelection'),invoiceFiltered,'invoice',null);
@@ -484,11 +507,6 @@ function drawInvoiceMedia() {
     empty.innerHTML='<span class="invoice-media-empty-icon">◈</span><strong>سریالی برای این فاکتور ثبت نشده است.</strong><small>از بخش مدیریت سریال‌ها می‌توانید سرور اضافه کنید.</small>';
     groups.append(empty);
   }else{
-    const firstWithFiles=serials.find(serial=>serialFiles.some(file=>file.serial_number===serial));
-    if(!invoiceMedia.activeSerial || !serials.includes(invoiceMedia.activeSerial)){
-      if(invoiceMedia.view==='serial')invoiceMedia.selectedIds.clear();
-      invoiceMedia.activeSerial=firstWithFiles||serials[0];
-    }
     const selector=document.createElement('div');selector.className='invoice-media-serial-selector';selector.dir='ltr';
     selector.setAttribute('role','group');selector.setAttribute('aria-label','انتخاب پرونده سرور');
     serials.forEach(serial=>{
@@ -501,30 +519,31 @@ function drawInvoiceMedia() {
       button.append(name,badge);
       button.addEventListener('click',()=>{
         if(invoiceMedia.deleting||invoiceMedia.activeSerial===serial)return;
-        if(invoiceMedia.view==='serial')invoiceMedia.selectedIds.clear();
-        invoiceMedia.activeSerial=serial;drawInvoiceMedia();
+        selectMediaSerialGallery(serial);
       });selector.append(button);
     });
     groups.append(selector);
     const selected=invoiceMedia.activeSerial;
-    const selectedAll=serialFiles.filter(file=>file.serial_number===selected);
-    const selectedFiles=mediaFilteredFiles(selectedAll);
-    const panel=document.createElement('div');panel.className='invoice-media-serial-file-panel';
-    const top=document.createElement('div');top.className='invoice-media-serial-file-header';
-    const description=document.createElement('div');description.className='invoice-media-serial-file-label';
-    const label=document.createElement('span');label.textContent='پرونده سرور';
-    const current=document.createElement('strong');current.textContent=mediaSerialLabel(selected);
-    description.append(label,current);
-    if(selectedAll.length){
-      const download=mediaButton(mediaGroupDownloadLabel(selectedAll),'secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected));
-      download.title='مجموع حجم فایل‌های اصلی این سرور، پیش از بسته‌بندی ZIP';
-      top.append(download);
+    if(selected){
+      const selectedAll=serialFiles.filter(file=>file.serial_number===selected);
+      const selectedFiles=mediaFilteredFiles(selectedAll);
+      const panel=document.createElement('div');panel.className='invoice-media-serial-file-panel';
+      const top=document.createElement('div');top.className='invoice-media-serial-file-header';
+      const description=document.createElement('div');description.className='invoice-media-serial-file-label';
+      const label=document.createElement('span');label.textContent='پرونده سرور';
+      const current=document.createElement('strong');current.textContent=mediaSerialLabel(selected);
+      description.append(label,current);
+      if(selectedAll.length){
+        const download=mediaButton(mediaGroupDownloadLabel(selectedAll),'secondary-btn',()=>downloadInvoiceMediaGroup('serial',selected));
+        download.title='مجموع حجم فایل‌های اصلی این سرور، پیش از بسته‌بندی ZIP';
+        top.append(download);
+      }
+      top.append(description);
+      const controls=document.createElement('div');
+      const selection=drawMediaSelectionControls(controls,selectedFiles,'serial',selected);
+      const gallery=document.createElement('div');gallery.className='invoice-media-list';drawMediaRows(gallery,selectedFiles,selection);
+      panel.append(top,controls,gallery);groups.append(panel);
     }
-    top.append(description);
-    const controls=document.createElement('div');
-    const selection=drawMediaSelectionControls(controls,selectedFiles,'serial',selected);
-    const gallery=document.createElement('div');gallery.className='invoice-media-list';drawMediaRows(gallery,selectedFiles,selection);
-    panel.append(top,controls,gallery);groups.append(panel);
   }
   if(!invoiceMedia.thumbnailObserver){
     for(const target of mediaElement('invoiceMediaModal').querySelectorAll('.invoice-media-file-thumb[data-media-id]'))
@@ -1135,7 +1154,7 @@ function setMediaDeleteBusy(busy) {
     el.disabled=busy;
   }
   if(busy){
-    for(const el of modal.querySelectorAll('.invoice-media-bulk-controls input, .invoice-media-bulk-delete, .invoice-media-file-select input, .invoice-media-file-actions button, .invoice-media-serial-chip, #invoiceMediaUploadButton'))el.disabled=true;
+    for(const el of modal.querySelectorAll('.invoice-media-bulk-controls input, .invoice-media-bulk-delete, .invoice-media-file-select input, .invoice-media-file-actions button, .invoice-media-serial-chip, #invoiceMediaUploadButton, #invoiceMediaSerialSelect'))el.disabled=true;
     for(const el of modal.querySelectorAll('.invoice-media-bulk-delete'))el.textContent='در حال حذف...';
   }
 }
